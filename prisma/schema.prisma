@@ -1,0 +1,11 @@
+// Prisma schema for Giftly.
+// Step 1: datasource and generator only. Tables are added in Step 2.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
