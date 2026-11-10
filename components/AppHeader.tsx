@@ -22,6 +22,7 @@ type Props = { role: Role; charitySlug: string | null; charities: { slug: string
 
 export default function AppHeader({ role, charitySlug, charities }: Props) {
   const pathname = usePathname();
+  const nav = role === "admin" ? [...NAV, { href: "/elf-test", label: "Elf tests" }] : NAV;
 
   return (
     <>
@@ -55,7 +56,7 @@ export default function AppHeader({ role, charitySlug, charities }: Props) {
               <Logo />
             </Box>
             <Box component="nav" sx={{ display: "flex", gap: 0.5 }}>
-              {NAV.map((item) => {
+              {nav.map((item) => {
                 const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
                 return (
                   <Button

@@ -22,6 +22,7 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
 import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
+import ElfChat from "@/components/ElfChat";
 import ProgressBar from "@/components/ProgressBar";
 import LinkButton from "@/components/ui/LinkButton";
 import StatusChip from "@/components/ui/StatusChip";
@@ -158,6 +159,16 @@ export default async function CausePage({ params }: { params: Promise<{ slug: st
               </Accordion>
             ))}
           </Box>
+
+          <Card sx={{ overflow: "hidden" }}>
+            <ElfChat
+              charitySlug={cause.slug}
+              height={460}
+              greeting={`Hi! Ask me anything about ${cause.name}, or tell me who you'd like to help and I'll suggest a gift.`}
+              suggestions={["How are gifts delivered?", "What does cash pay for?", "A gift for a 7-year-old under $25"]}
+              placeholder="Ask about this cause…"
+            />
+          </Card>
 
           <Card>
             <CardContent sx={{ p: 3, pb: "8px !important" }}>

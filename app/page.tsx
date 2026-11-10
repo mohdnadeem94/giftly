@@ -11,9 +11,9 @@ import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
-import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
 import CauseCard from "@/components/CauseCard";
+import ElfChat from "@/components/ElfChat";
 import LinkButton from "@/components/ui/LinkButton";
 import { getPublicStats, listCauses } from "@/lib/public-data";
 import { money } from "@/lib/format";
@@ -113,101 +113,10 @@ export default async function Home() {
               </Box>
             </Box>
 
-            {/* Elf preview */}
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2.5,
-                bgcolor: "rgba(255,255,255,0.97)",
-                color: "text.primary",
-                boxShadow: "0 30px 60px rgba(0,0,0,0.25)",
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 2 }}>
-                <Box
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: "50%",
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: 22,
-                    bgcolor: "#dcfce7",
-                  }}
-                  aria-hidden="true"
-                >
-                  🧝
-                </Box>
-                <Box>
-                  <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>The Elf</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Your AI giving helper
-                  </Typography>
-                </Box>
-                <Chip label="Coming soon" size="small" sx={{ ml: "auto", bgcolor: "#fef3c7", color: "#92400e" }} />
-              </Box>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
-                <Box
-                  sx={{
-                    alignSelf: "flex-end",
-                    bgcolor: "primary.main",
-                    color: "#fff",
-                    px: 2,
-                    py: 1.25,
-                    borderRadius: "18px 18px 4px 18px",
-                    maxWidth: "85%",
-                    fontSize: "0.92rem",
-                  }}
-                >
-                  A Christmas gift for a 5-year-old girl, around $20
-                </Box>
-                <Box
-                  sx={{
-                    alignSelf: "flex-start",
-                    bgcolor: "#f5f0e8",
-                    px: 2,
-                    py: 1.25,
-                    borderRadius: "18px 18px 18px 4px",
-                    maxWidth: "90%",
-                    fontSize: "0.92rem",
-                  }}
-                >
-                  Here are three picks with live prices, all under $20. A picture storybook set is on Bright
-                  Pages&apos; wishlist, so it&apos;s my top choice. 📚
-                </Box>
-              </Box>
-              <Box
-                sx={{
-                  mt: 2,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 999,
-                  pl: 2,
-                  pr: 0.75,
-                  py: 0.75,
-                  color: "text.secondary",
-                  fontSize: "0.9rem",
-                }}
-              >
-                <Box sx={{ flex: 1 }}>Tell the Elf what you&apos;d like to give…</Box>
-                <Box
-                  sx={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: "50%",
-                    bgcolor: "#e7e5e4",
-                    display: "grid",
-                    placeItems: "center",
-                  }}
-                  aria-hidden="true"
-                >
-                  <SendRoundedIcon sx={{ fontSize: 18, color: "#a8a29e" }} />
-                </Box>
-              </Box>
-            </Paper>
+            {/* The Elf: live AI chat */}
+            <Box id="elf" sx={{ boxShadow: "0 30px 60px rgba(0,0,0,0.25)", borderRadius: "20px", scrollMarginTop: 96 }}>
+              <ElfChat height={540} />
+            </Box>
           </Box>
         </Container>
       </Box>
