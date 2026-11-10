@@ -31,7 +31,7 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
   const [needId, setNeedId] = useState(needs[0]?.id ?? "");
   const [displayName, setDisplayName] = useState("");
   const [anonymous, setAnonymous] = useState(false);
-  const [status, setStatus] = useState<"idle" | "processing" | "cancelled" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "starting" | "processing" | "cancelled" | "error">("idle");
   const [message, setMessage] = useState("");
 
   // Keep the latest choices in a ref so PayPal callbacks never read stale values.
@@ -49,7 +49,7 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
   }
 
   async function createOrder() {
-    setStatus("idle");
+    setStatus("starting");
     setMessage("");
     const l = latest.current;
     const input: StartInput =
@@ -62,6 +62,7 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
       setMessage(res.error);
       throw new Error(res.error);
     }
+    setStatus("idle");
     return { orderId: res.paypalOrderId };
   }
 
@@ -156,7 +157,18 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
 
       {status === "error" && <p className="alert alert-error">{message}</p>}
       {status === "cancelled" && <p className="alert">Payment cancelled. Nothing was charged or saved.</p>}
-      {status === "processing" && <p className="alert">Confirming your payment with PayPal…</p>}
+      {status === "starting" && (
+        <p className="alert loading-line" role="status">
+          <span className="spinner spinner-small" aria-hidden="true" /> Opening PayPal…
+        </p>
+      )}
+      {status === "processing" && (
+        <div className="processing" role="status" aria-live="polite">
+          <div className="spinner" aria-hidden="true" />
+          <strong>Confirming your payment with PayPal…</strong>
+          <span className="muted small">Please don&apos;t close this page.</span>
+        </div>
+      )}
 
       {valid && status !== "processing" ? (
         <PayPalProvider
@@ -165,6 +177,12 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
           components={["paypal-payments"]}
           pageType="checkout"
         >
+          {/* Placeholder sits behind the button while PayPal's script loads. */}
+          <div className="paypal-slot">
+            <div className="paypal-placeholder" aria-hidden="true">
+              <span className="spinner spinner-small" /> Loading PayPal…
+            </div>
+            <div className="paypal-button-layer">
           <PayPalOneTimePaymentButton
             createOrder={createOrder}
             onApprove={onApprove}
@@ -175,6 +193,8 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
             }}
             presentationMode="auto"
           />
+            </div>
+          </div>
         </PayPalProvider>
       ) : null}
 

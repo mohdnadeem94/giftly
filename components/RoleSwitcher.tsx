@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CHARITY_COOKIE, ROLE_COOKIE, ROLE_LABELS, ROLES, type Role } from "@/lib/roles";
 
@@ -16,22 +17,26 @@ type Props = {
 // Demo-only role switcher. Not authentication.
 export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
   const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const refresh = () => startTransition(() => router.refresh());
   const currentCharity = charities.find((c) => c.slug === charitySlug)?.slug ?? charities[0]?.slug ?? "";
 
   function chooseRole(next: Role) {
     setCookie(ROLE_COOKIE, next);
     if (next === "charity" && currentCharity) setCookie(CHARITY_COOKIE, currentCharity);
-    router.refresh();
+    refresh();
   }
 
   function chooseCharity(slug: string) {
     setCookie(CHARITY_COOKIE, slug);
-    router.refresh();
+    refresh();
   }
 
   return (
-    <div className="roles" aria-label="Demo role switcher">
-      <span className="roles-label">Demo role</span>
+    <div className={pending ? "roles is-pending" : "roles"} aria-label="Demo role switcher" aria-busy={pending}>
+      <span className="roles-label">
+        {pending ? <span className="spinner spinner-small spinner-light" aria-hidden="true" /> : null} Demo role
+      </span>
       <div className="roles-buttons">
         {ROLES.map((r) => (
           <button
