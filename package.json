@@ -19,6 +19,8 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@paypal/paypal-server-sdk": "^2.5.0",
+    "@paypal/react-paypal-js": "^10.6.1",
     "@prisma/client": "^6.19.0",
     "next": "^16.0.0",
     "react": "^19.2.0",
