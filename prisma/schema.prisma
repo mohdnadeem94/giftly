@@ -119,6 +119,7 @@ model OrderItem {
   id                         String     @id @default(cuid())
   orderId                    String
   needId                     String?
+  externalId                 String? // Channel3 product ID, used to re-check the live price
   productTitle               String
   merchant                   String
   productUrl                 String

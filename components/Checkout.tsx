@@ -27,11 +27,22 @@ import ElfLoader, { PAYMENT_MESSAGES } from "@/components/ElfLoader";
 
 type Need = { id: string; title: string; ageGroup: string; priceCents: number };
 
+export type DraftGift = {
+  id: string; // OrderItem id
+  title: string;
+  merchant: string;
+  imageUrl: string | null;
+  productUrl: string;
+  priceCents: number;
+};
+
 type Props = {
   charity: { slug: string; name: string };
   mode: "cash" | "gift";
   needs: Need[];
   paypalClientId: string;
+  /** A real product the donor picked from search. When set, the donor pays for exactly this item. */
+  draft?: DraftGift | null;
 };
 
 const PRESETS = [1000, 2500, 5000, 10000];
@@ -40,7 +51,7 @@ function fmt(cents: number) {
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
 
-export default function Checkout({ charity, mode, needs, paypalClientId }: Props) {
+export default function Checkout({ charity, mode, needs, paypalClientId, draft = null }: Props) {
   const router = useRouter();
   const [cashCents, setCashCents] = useState(2500);
   const [customAmount, setCustomAmount] = useState("");
@@ -55,8 +66,8 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
   latest.current = { cashCents, needId, displayName, anonymous };
 
   const selectedNeed = needs.find((n) => n.id === needId);
-  const totalCents = mode === "cash" ? cashCents : (selectedNeed?.priceCents ?? 0);
-  const valid = mode === "cash" ? cashCents >= 100 && cashCents <= 50000 : !!selectedNeed;
+  const totalCents = mode === "cash" ? cashCents : draft ? draft.priceCents : (selectedNeed?.priceCents ?? 0);
+  const valid = mode === "cash" ? cashCents >= 100 && cashCents <= 50000 : !!draft || !!selectedNeed;
 
   function onCustom(value: string) {
     setCustomAmount(value);
@@ -71,7 +82,9 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
     const input: StartInput =
       mode === "cash"
         ? { mode: "cash", charitySlug: charity.slug, cashCents: l.cashCents }
-        : { mode: "gift", charitySlug: charity.slug, needId: l.needId };
+        : draft
+          ? { mode: "item", charitySlug: charity.slug, orderItemId: draft.id }
+          : { mode: "gift", charitySlug: charity.slug, needId: l.needId };
     const res = await startCheckout(input);
     if (!res.ok) {
       setStatus("error");
@@ -162,6 +175,71 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
             }}
           />
         </Box>
+      ) : draft ? (
+        <Box>
+          <Typography sx={{ fontWeight: 700, mb: 1.25 }}>Your gift</Typography>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              alignItems: "center",
+              p: 1.5,
+              border: "2px solid",
+              borderColor: "primary.main",
+              bgcolor: "#f0fdf4",
+              borderRadius: "16px",
+            }}
+          >
+            <Box
+              sx={{
+                width: 84,
+                height: 84,
+                flexShrink: 0,
+                borderRadius: "12px",
+                bgcolor: "#fff",
+                border: "1px solid",
+                borderColor: "divider",
+                overflow: "hidden",
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              {draft.imageUrl ? (
+                <Box
+                  component="img"
+                  src={draft.imageUrl}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  sx={{ width: "100%", height: "100%", objectFit: "contain", p: 0.75 }}
+                />
+              ) : (
+                <CardGiftcardRoundedIcon sx={{ color: "#d6d3d1" }} />
+              )}
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 700, lineHeight: 1.3 }}>{draft.title}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                from{" "}
+                <Box
+                  component="a"
+                  href={draft.productUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  sx={{ color: "inherit" }}
+                >
+                  {draft.merchant}
+                </Box>
+              </Typography>
+              <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{fmt(draft.priceCents)}</Typography>
+            </Box>
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+            Your payment is tied to this exact product, store and price. We re-check the live price before you pay.{" "}
+            <Box component="a" href={`/give/${charity.slug}?mode=gift`} sx={{ color: "primary.main", fontWeight: 700 }}>
+              Choose a different gift
+            </Box>
+          </Typography>
+        </Box>
       ) : (
         <Box>
           <Typography sx={{ fontWeight: 700, mb: 1.25 }}>Choose a gift from the wishlist</Typography>
@@ -218,9 +296,6 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
               );
             })}
           </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-            Soon the Elf will also suggest real products with live prices.
-          </Typography>
         </Box>
       )}
 
