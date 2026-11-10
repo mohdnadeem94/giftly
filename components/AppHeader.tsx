@@ -22,7 +22,11 @@ type Props = { role: Role; charitySlug: string | null; charities: { slug: string
 
 export default function AppHeader({ role, charitySlug, charities }: Props) {
   const pathname = usePathname();
-  const nav = role === "admin" ? [...NAV, { href: "/elf-test", label: "Elf tests" }] : NAV;
+  const nav = [
+    ...NAV,
+    ...(role === "charity" || role === "admin" ? [{ href: "/charity", label: "Dashboard" }] : []),
+    ...(role === "admin" ? [{ href: "/elf-test", label: "Elf tests" }] : []),
+  ];
 
   return (
     <>
