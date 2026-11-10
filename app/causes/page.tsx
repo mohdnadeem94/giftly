@@ -1,55 +1,28 @@
-import Link from "next/link";
-import ProgressBar from "@/components/ProgressBar";
+import Box from "@mui/material/Box";
+import Container from "@mui/material/Container";
+import Typography from "@mui/material/Typography";
+import CauseCard from "@/components/CauseCard";
 import { listCauses } from "@/lib/public-data";
-import { money } from "@/lib/format";
 
 export default async function CausesPage() {
   const causes = await listCauses();
 
   return (
-    <>
-      <h1>Explore causes</h1>
-      <p className="muted">Every cause below gives to children. Give cash, or a real gift you can follow to delivery.</p>
-
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Cause</th>
-              <th>Category</th>
-              <th>Region</th>
-              <th>Goal</th>
-              <th>Raised</th>
-              <th>Open needs</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {causes.map((c) => (
-              <tr key={c.slug}>
-                <td>
-                  <Link href={`/causes/${c.slug}`} className="strong-link">
-                    {c.name}
-                  </Link>
-                  {c.verifiedDemo && <span className="chip chip-verified">Verified (demo)</span>}
-                </td>
-                <td>{c.category}</td>
-                <td>{c.region}</td>
-                <td>{money(c.goalCents)}</td>
-                <td className="cell-progress">
-                  <ProgressBar raisedCents={c.raisedCents} goalCents={c.goalCents} />
-                </td>
-                <td>{c.openNeeds}</td>
-                <td>
-                  <Link href={`/causes/${c.slug}`} className="btn btn-primary btn-small">
-                    Donate
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+    <Container maxWidth="lg" sx={{ py: { xs: 5, md: 7 } }}>
+      <Typography variant="overline" color="secondary">
+        Explore causes
+      </Typography>
+      <Typography variant="h3" sx={{ fontSize: { xs: "2rem", md: "2.6rem" }, mb: 1 }}>
+        Every cause here helps children
+      </Typography>
+      <Typography color="text.secondary" sx={{ maxWidth: 620, mb: 4 }}>
+        Give cash for running costs, or a real gift you can follow all the way to delivery.
+      </Typography>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" }, gap: 3 }}>
+        {causes.map((c) => (
+          <CauseCard key={c.slug} cause={c} />
+        ))}
+      </Box>
+    </Container>
   );
 }

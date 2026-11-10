@@ -2,6 +2,12 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import { CHARITY_COOKIE, ROLE_COOKIE, ROLE_LABELS, ROLES, type Role } from "@/lib/roles";
 
 function setCookie(name: string, value: string) {
@@ -14,7 +20,7 @@ type Props = {
   charities: { slug: string; name: string }[];
 };
 
-// Demo-only role switcher. Not authentication.
+// Demo-only role switcher. Not authentication: server routes validate every action themselves.
 export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -33,37 +39,60 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
   }
 
   return (
-    <div className={pending ? "roles is-pending" : "roles"} aria-label="Demo role switcher" aria-busy={pending}>
-      <span className="roles-label">
-        {pending ? <span className="spinner spinner-small spinner-light" aria-hidden="true" /> : null} Demo role
-      </span>
-      <div className="roles-buttons">
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }} aria-busy={pending}>
+      <ToggleButtonGroup
+        size="small"
+        exclusive
+        value={role}
+        disabled={pending}
+        onChange={(_, next: Role | null) => next && chooseRole(next)}
+        aria-label="Demo role"
+        sx={{
+          bgcolor: "background.paper",
+          borderRadius: 999,
+          p: 0.4,
+          border: "1px solid",
+          borderColor: "divider",
+          "& .MuiToggleButton-root": {
+            border: 0,
+            borderRadius: "999px !important",
+            px: 1.5,
+            py: 0.4,
+            color: "text.secondary",
+          },
+          "& .MuiToggleButton-root.Mui-selected, & .MuiToggleButton-root.Mui-selected:hover": {
+            bgcolor: "#166534",
+            color: "#ffffff",
+          },
+          "& .MuiToggleButton-root.Mui-disabled.Mui-selected": {
+            bgcolor: "#166534",
+            color: "rgba(255,255,255,0.8)",
+          },
+        }}
+      >
         {ROLES.map((r) => (
-          <button
-            key={r}
-            type="button"
-            className={r === role ? "role active" : "role"}
-            aria-pressed={r === role}
-            onClick={() => chooseRole(r)}
-          >
+          <ToggleButton key={r} value={r}>
             {ROLE_LABELS[r]}
-          </button>
+          </ToggleButton>
         ))}
-      </div>
+      </ToggleButtonGroup>
       {role === "charity" && charities.length > 0 && (
-        <select
-          className="charity-select"
+        <Select
+          size="small"
           value={currentCharity}
-          onChange={(e) => chooseCharity(e.target.value)}
+          onChange={(e) => chooseCharity(String(e.target.value))}
+          disabled={pending}
           aria-label="Charity you are acting as"
+          sx={{ borderRadius: 999, bgcolor: "background.paper", fontSize: "0.85rem", maxWidth: 220 }}
         >
           {charities.map((c) => (
-            <option key={c.slug} value={c.slug}>
+            <MenuItem key={c.slug} value={c.slug}>
               {c.name}
-            </option>
+            </MenuItem>
           ))}
-        </select>
+        </Select>
       )}
-    </div>
+      {pending && <CircularProgress size={18} aria-label="Switching role" />}
+    </Box>
   );
 }

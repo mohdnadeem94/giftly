@@ -7,7 +7,23 @@ import {
   PayPalProvider,
   type OnApproveDataOneTimePayments,
 } from "@paypal/react-paypal-js/sdk-v6";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import CircularProgress from "@mui/material/CircularProgress";
+import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import InputAdornment from "@mui/material/InputAdornment";
+import Skeleton from "@mui/material/Skeleton";
+import TextField from "@mui/material/TextField";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import Typography from "@mui/material/Typography";
+import CardGiftcardRoundedIcon from "@mui/icons-material/CardGiftcardRounded";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import { finishCheckout, startCheckout, type StartInput } from "@/app/give/actions";
+import ElfLoader, { PAYMENT_MESSAGES } from "@/components/ElfLoader";
 
 type Need = { id: string; title: string; ageGroup: string; priceCents: number };
 
@@ -45,7 +61,7 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
   function onCustom(value: string) {
     setCustomAmount(value);
     const cents = Math.round(Number.parseFloat(value) * 100);
-    if (Number.isFinite(cents)) setCashCents(cents);
+    setCashCents(Number.isFinite(cents) ? cents : 0);
   }
 
   async function createOrder() {
@@ -78,129 +94,222 @@ export default function Checkout({ charity, mode, needs, paypalClientId }: Props
   }
 
   if (!paypalClientId) {
-    return <p className="alert alert-error">PayPal is not configured yet (missing NEXT_PUBLIC_PAYPAL_CLIENT_ID).</p>;
+    return <Alert severity="error">PayPal is not configured yet (missing NEXT_PUBLIC_PAYPAL_CLIENT_ID).</Alert>;
+  }
+
+  if (status === "processing") {
+    return (
+      <ElfLoader
+        compact
+        title="Thank you for giving!"
+        messages={PAYMENT_MESSAGES}
+        note="Please don't close this page."
+      />
+    );
   }
 
   return (
-    <div className="checkout">
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
       {mode === "cash" ? (
-        <fieldset className="field">
-          <legend>Choose an amount</legend>
-          <div className="amounts">
+        <Box>
+          <Typography sx={{ fontWeight: 700, mb: 1.25 }}>Choose an amount</Typography>
+          <ToggleButtonGroup
+            exclusive
+            fullWidth
+            value={customAmount ? null : cashCents}
+            onChange={(_, v: number | null) => {
+              if (v) {
+                setCustomAmount("");
+                setCashCents(v);
+              }
+            }}
+            sx={{
+              gap: 1,
+              "& .MuiToggleButton-root": {
+                border: "2px solid",
+                borderColor: "divider",
+                borderRadius: "14px !important",
+                fontWeight: 800,
+                fontSize: "1.05rem",
+                py: 1.25,
+              },
+              "& .MuiToggleButton-root.Mui-selected, & .MuiToggleButton-root.Mui-selected:hover": {
+                borderColor: "#166534",
+                bgcolor: "#f0fdf4",
+                color: "#166534",
+              },
+            }}
+          >
             {PRESETS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                className={!customAmount && cashCents === p ? "amount active" : "amount"}
-                onClick={() => {
-                  setCustomAmount("");
-                  setCashCents(p);
-                }}
-              >
+              <ToggleButton key={p} value={p}>
                 {fmt(p)}
-              </button>
+              </ToggleButton>
             ))}
-            <label className="amount-custom">
-              <span>$</span>
-              <input
-                type="number"
-                min={1}
-                max={500}
-                step="1"
-                placeholder="Other"
-                value={customAmount}
-                onChange={(e) => onCustom(e.target.value)}
-                aria-label="Custom amount in US dollars"
-              />
-            </label>
-          </div>
-          {!valid && <p className="hint">Please choose between $1 and $500.</p>}
-        </fieldset>
+          </ToggleButtonGroup>
+          <TextField
+            fullWidth
+            type="number"
+            label="Other amount"
+            placeholder="1 to 500"
+            value={customAmount}
+            onChange={(e) => onCustom(e.target.value)}
+            sx={{ mt: 1.5 }}
+            error={!!customAmount && !valid}
+            helperText={!!customAmount && !valid ? "Please choose between $1 and $500." : " "}
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
+              htmlInput: { min: 1, max: 500, step: 1 },
+            }}
+          />
+        </Box>
       ) : (
-        <fieldset className="field">
-          <legend>Choose a gift from {charity.name}&apos;s wishlist</legend>
-          {needs.length === 0 && <p className="muted">This charity has no open gift requests right now.</p>}
-          <div className="need-options">
-            {needs.map((n) => (
-              <label key={n.id} className={n.id === needId ? "need-option active" : "need-option"}>
-                <input type="radio" name="need" value={n.id} checked={n.id === needId} onChange={() => setNeedId(n.id)} />
-                <span className="need-title">{n.title}</span>
-                <span className="muted small">Ages {n.ageGroup}</span>
-                <strong>{fmt(n.priceCents)}</strong>
-              </label>
-            ))}
-          </div>
-          <p className="hint">Soon the Elf will also suggest real products with live prices.</p>
-        </fieldset>
+        <Box>
+          <Typography sx={{ fontWeight: 700, mb: 1.25 }}>Choose a gift from the wishlist</Typography>
+          {needs.length === 0 && <Alert severity="info">This charity has no open gift requests right now.</Alert>}
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }} role="radiogroup" aria-label="Wishlist gifts">
+            {needs.map((n) => {
+              const active = n.id === needId;
+              return (
+                <Box
+                  key={n.id}
+                  component="button"
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setNeedId(n.id)}
+                  sx={{
+                    all: "unset",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    p: 1.5,
+                    borderRadius: "14px",
+                    border: "2px solid",
+                    borderColor: active ? "primary.main" : "divider",
+                    bgcolor: active ? "#f0fdf4" : "background.paper",
+                    transition: "border-color .15s, background-color .15s",
+                    "&:hover": { borderColor: active ? "primary.main" : "#d6d3d1" },
+                    "&:focus-visible": { outline: "3px solid #bbf7d0" },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "12px",
+                      display: "grid",
+                      placeItems: "center",
+                      flexShrink: 0,
+                      bgcolor: active ? "primary.main" : "#fff1f2",
+                      color: active ? "#fff" : "secondary.main",
+                    }}
+                  >
+                    {active ? <CheckCircleRoundedIcon fontSize="small" /> : <CardGiftcardRoundedIcon fontSize="small" />}
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 700, lineHeight: 1.3 }}>{n.title}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Ages {n.ageGroup}
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontWeight: 800 }}>{fmt(n.priceCents)}</Typography>
+                </Box>
+              );
+            })}
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+            Soon the Elf will also suggest real products with live prices.
+          </Typography>
+        </Box>
       )}
 
-      <fieldset className="field">
-        <legend>How should we show your name?</legend>
-        <input
-          type="text"
-          className="text-input"
-          maxLength={40}
-          placeholder="Display name (e.g. Priya S.)"
+      <Box>
+        <Typography sx={{ fontWeight: 700, mb: 1.25 }}>Your name on public pages</Typography>
+        <TextField
+          fullWidth
+          label="Display name"
+          placeholder="e.g. Priya S."
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
+          disabled={anonymous}
+          slotProps={{ htmlInput: { maxLength: 40 } }}
         />
-        <label className="check">
-          <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} />
-          Show me as Anonymous on public pages
-        </label>
-      </fieldset>
+        <FormControlLabel
+          sx={{ mt: 0.5 }}
+          control={<Checkbox checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} />}
+          label={<Typography variant="body2">Show me as Anonymous</Typography>}
+        />
+      </Box>
 
-      <div className="summary">
-        <span>Total</span>
-        <strong>{fmt(totalCents)}</strong>
-      </div>
+      <Divider />
 
-      {status === "error" && <p className="alert alert-error">{message}</p>}
-      {status === "cancelled" && <p className="alert">Payment cancelled. Nothing was charged or saved.</p>}
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Typography color="text.secondary" sx={{ fontWeight: 600 }}>
+          Total
+        </Typography>
+        <Typography sx={{ fontWeight: 800, fontSize: "2rem", color: "primary.main", lineHeight: 1 }}>
+          {fmt(totalCents)}
+        </Typography>
+      </Box>
+
+      {status === "error" && <Alert severity="error">{message}</Alert>}
+      {status === "cancelled" && <Alert severity="info">Payment cancelled. Nothing was charged or saved.</Alert>}
       {status === "starting" && (
-        <p className="alert loading-line" role="status">
-          <span className="spinner spinner-small" aria-hidden="true" /> Opening PayPal…
-        </p>
-      )}
-      {status === "processing" && (
-        <div className="processing" role="status" aria-live="polite">
-          <div className="spinner" aria-hidden="true" />
-          <strong>Confirming your payment with PayPal…</strong>
-          <span className="muted small">Please don&apos;t close this page.</span>
-        </div>
+        <Alert severity="info" icon={<CircularProgress size={18} />}>
+          Opening PayPal…
+        </Alert>
       )}
 
-      {valid && status !== "processing" ? (
-        <PayPalProvider
-          clientId={paypalClientId}
-          environment="sandbox"
-          components={["paypal-payments"]}
-          pageType="checkout"
-        >
-          {/* Placeholder sits behind the button while PayPal's script loads. */}
-          <div className="paypal-slot">
-            <div className="paypal-placeholder" aria-hidden="true">
-              <span className="spinner spinner-small" /> Loading PayPal…
-            </div>
-            <div className="paypal-button-layer">
-          <PayPalOneTimePaymentButton
-            createOrder={createOrder}
-            onApprove={onApprove}
-            onCancel={() => setStatus("cancelled")}
-            onError={() => {
-              setStatus("error");
-              setMessage((m) => m || "PayPal reported an error. Nothing was saved. Please try again.");
+      {valid ? (
+        <PayPalProvider clientId={paypalClientId} environment="sandbox" components={["paypal-payments"]} pageType="checkout">
+          {/* Skeleton shows while PayPal's script loads, then hides once <paypal-button> is ready. */}
+          <Box
+            sx={{
+              position: "relative",
+              minHeight: 52,
+              "&:has(paypal-button:defined) .pp-skeleton": { display: "none" },
+              // PayPal's web component sets a fixed 225px width; outside styles win over its :host rules.
+              "& paypal-button": {
+                display: "block",
+                width: "100%",
+                height: 52,
+                "--paypal-button-border-radius": "999px",
+              },
             }}
-            presentationMode="auto"
-          />
-            </div>
-          </div>
+          >
+            <Skeleton
+              className="pp-skeleton"
+              variant="rounded"
+              height={52}
+              sx={{ position: "absolute", inset: 0, borderRadius: 999 }}
+              aria-hidden="true"
+            />
+            <Box sx={{ position: "relative", zIndex: 1 }}>
+              <PayPalOneTimePaymentButton
+                createOrder={createOrder}
+                onApprove={onApprove}
+                onCancel={() => setStatus("cancelled")}
+                onError={() => {
+                  setStatus("error");
+                  setMessage((m) => m || "PayPal reported an error. Nothing was saved. Please try again.");
+                }}
+                presentationMode="auto"
+              />
+            </Box>
+          </Box>
         </PayPalProvider>
-      ) : null}
+      ) : (
+        <Alert severity="warning">Choose {mode === "cash" ? "an amount between $1 and $500" : "a gift"} to continue.</Alert>
+      )}
 
-      <p className="muted small">
-        PayPal sandbox: use your sandbox buyer account. No real money moves.
-      </p>
-    </div>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}
+      >
+        <LockOutlinedIcon sx={{ fontSize: 14 }} /> PayPal sandbox: use your sandbox buyer account. No real money moves.
+      </Typography>
+    </Box>
   );
 }
