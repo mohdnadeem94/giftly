@@ -1,5 +1,5 @@
 // Prisma schema for Giftly.
-// Step 1: datasource and generator only. Tables are added in Step 2.
+// Money is stored in integer cents (e.g. 1999 = $19.99) to avoid rounding issues.
 
 generator client {
   provider = "prisma-client-js"
@@ -8,4 +8,170 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum OrderType {
+  CASH
+  GIFT
+  HYBRID
+}
+
+enum OrderStatus {
+  PENDING // created, not yet paid
+  RECEIVED // cash donation paid and verified
+  PAID // gift (or hybrid) order paid and verified
+  CANCELLED
+}
+
+enum ItemStatus {
+  PENDING // draft chosen by the donor, not yet paid
+  PAID
+  BOUGHT
+  DELIVERED
+}
+
+enum NeedStatus {
+  OPEN
+  FUNDED
+  FULFILLED
+}
+
+enum ProofResult {
+  MATCH
+  MISMATCH
+  UNCLEAR
+}
+
+enum AdminDecision {
+  APPROVED
+  REJECTED
+}
+
+enum MessageType {
+  THANK_YOU
+  UPDATE
+}
+
+model Charity {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  story        String
+  region       String // general region only
+  category     String
+  faqText      String
+  photoUrl     String
+  verifiedDemo Boolean  @default(false) // illustrative badge, not real verification
+  goalCents    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  needs  Need[]
+  orders Order[]
+}
+
+model Need {
+  id               String     @id @default(cuid())
+  charityId        String
+  title            String
+  ageGroup         String // e.g. "3-5", never a child's name
+  targetPriceCents Int
+  status           NeedStatus @default(OPEN)
+  createdAt        DateTime   @default(now())
+
+  charity    Charity     @relation(fields: [charityId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@index([charityId])
+}
+
+model Donor {
+  id          String   @id @default(cuid())
+  displayName String
+  email       String? // PRIVATE: never return from public endpoints
+  anonymous   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  orders Order[]
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  donorId       String?
+  charityId     String
+  type          OrderType
+  totalCents    Int // gift price + cash; from DB / verified PayPal order only
+  cashCents     Int         @default(0)
+  paypalOrderId String?     @unique // PRIVATE: never return from public endpoints
+  status        OrderStatus @default(PENDING)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  donor    Donor?      @relation(fields: [donorId], references: [id], onDelete: SetNull)
+  charity  Charity     @relation(fields: [charityId], references: [id], onDelete: Cascade)
+  items    OrderItem[]
+  messages Message[]
+
+  @@index([charityId])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id                         String     @id @default(cuid())
+  orderId                    String
+  needId                     String?
+  productTitle               String
+  merchant                   String
+  productUrl                 String
+  imageUrl                   String?
+  priceAtRecommendationCents Int
+  priceAtPaymentCents        Int?
+  ageRange                   String?
+  status                     ItemStatus @default(PENDING)
+  createdAt                  DateTime   @default(now())
+  updatedAt                  DateTime   @updatedAt
+
+  order  Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  need   Need?   @relation(fields: [needId], references: [id], onDelete: SetNull)
+  proofs Proof[]
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model Proof {
+  id            String         @id @default(cuid())
+  orderItemId   String
+  imageData     Bytes // receipt image stored in Postgres (Render disk is not persistent)
+  mimeType      String
+  aiResult      ProofResult?
+  aiNotes       String?
+  adminDecision AdminDecision?
+  createdAt     DateTime       @default(now())
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  orderId   String
+  type      MessageType
+  text      String
+  createdAt DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model AgentLog {
+  id          String   @id @default(cuid())
+  sessionId   String
+  userMessage String
+  toolsCalled Json     @default("[]")
+  summary     String
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId])
 }
