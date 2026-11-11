@@ -30,6 +30,3 @@ PayPal sandbox only; charity payouts and merchant purchases are simulated; chari
 
 ## Working style
 Small steps. Keep a runnable app at all times. Do only what the current step asks. Prefer simple code over clever code. After each step, list what changed and how to test it.
-
-## Shared knowledge
-Read `docs/knowledge/KNOWLEDGE.md` and `docs/knowledge/graph.json` (see `AGENTS.md`). Update both when behavior changes.
