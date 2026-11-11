@@ -17,7 +17,7 @@ Reviewed 2026-11-10. Scope: current source, local Git history, environment contr
 | Raw payment SDK errors were logged | Authenticated request metadata could appear in logs | Remove raw error objects from audited payment, admin and cron logs |
 | A public display name could itself contain contact details | Donor-entered email/phone could appear publicly | Shared public donor label masks contact-looking names; Anonymous always remains Anonymous |
 | Hold duration override affected production | Test settings could alter the advertised production policy | Production ignores GIFT_HOLD_HOURS and BUY_CHECK_SIMULATE |
-| Reset could delete outstanding hold records | Scheduled release would lose the references it needs | Reject reset while AUTHORIZED orders exist; release/reconcile holds first |
+| Reset could delete outstanding hold records | Scheduled release would lose the references it needs | Reset first voids every AUTHORIZED hold through PayPal; if any void fails, the reset stops (409) and wipes nothing |
 | README/knowledge/payment tagline described an obsolete flow | Misleading payment and demo disclosures | Explain authorize at checkout, capture at Buy, 72-hour unused release, simulated purchase/payout/delivery |
 
 ## Checks that were already enforced

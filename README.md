@@ -1,108 +1,182 @@
-# Giftly
+# Giftly 🎁
 
-Follow your gift from click to delivery.
+**Give a real gift to someone in need, and watch it arrive.**
 
-Giftly is a PayPal AI Hackathon 2026 prototype for giving cash or choosing a gift for a cause. The AI Elf recommends products from Channel3, explains its choices, and answers questions from stored charity information. The donor approves checkout; the AI cannot set payment amounts or move money.
+Giftly is an AI-powered giving app built for the **PayPal AI Hackathon 2026**. A donor tells an AI helper, **the Elf**, who they want to help. The Elf finds real gifts with live prices from online stores, or suggests cash where it does more good. The donor pays with **PayPal**. For gifts, PayPal only **holds** the money, and the donor is charged when the charity actually buys the gift. The charity uploads a receipt, the AI checks it, and the donor follows the gift all the way to **Delivered**.
 
-## Payment flow
+> ⚠️ **Hackathon prototype.** PayPal **sandbox** only (test money); store purchases, charity payouts and delivery are simulated. See [Real vs simulated](#real-vs-simulated).
 
-- **Cash:** captured immediately after server verification.
-- **Gifts:** authorized at checkout, then captured when the charity clicks **Buy ? charge donor**. Payment does not wait until delivery.
-- **Before Buy:** Channel3 re-checks the same catalog product. Equal or lower prices can be charged; a lower price releases the unused hold. The best offer may be at another store.
-- **Price increase or sold out:** no capture; the gift stays blocked until release. There is no donor approval screen for a replacement or higher price.
-- **Catalog outage:** the existing policy falls back to the saved donor-approved amount. Availability is unconfirmed in this case. Wishlist items without a catalog ID use their stored price.
-- **Unused holds:** released after 72 hours, or sooner if PayPal's authorization expires. Release can also be requested by the charity. A scheduled job is needed for unattended release; page visits also sweep expired holds.
-- **Delivery:** requires a captured payment and accepted receipt proof. An AI-written thank-you follows delivery.
+- **Live demo:** https://giftly-ni7v.onrender.com (free tier: the first load can take up to a minute)
+- **Demo video:** _add link_
+- **Devpost text:** [docs/devpost.md](docs/devpost.md) · **Demo script:** [docs/demo-video.md](docs/demo-video.md) · **Security review:** [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md)
 
-## Real versus simulated
+---
 
-| Part | What this prototype does |
+## What it does
+
+| Feature | What happens |
 |---|---|
-| Product search | Live Channel3 requests, with price and availability checks |
-| Payment authorization, capture, void | Real API calls to **PayPal sandbox**, using test funds only |
-| Merchant purchase | Simulated; clicking Buy does not place an order with a store |
-| Charity payout | Simulated; capture goes to the configured sandbox merchant, not a charity's bank account |
-| Delivery | Manually recorded demo status; no courier integration or independent delivery confirmation |
-| Charity verification badges | Illustrative, not accreditation |
-| Roles | Cookie-based demo switcher, not authentication |
-| Charts and donation feed | Database aggregates including fictional seed records and sandbox transactions; only captured money counts as raised |
-| Receipt review | Real model request when configured, with admin review; AI results can be wrong |
+| **Ask the Elf** | An AI agent understands who you want to help (age, budget, occasion), searches real products through **Channel3**, and shows 2–3 gift cards with a short reason each. It can also recommend cash, and answers questions about a charity only from that charity's own story and FAQ. |
+| **Give a gift or cash** | Cash donations are charged at checkout. Gift payments are only **held** by PayPal. |
+| **Charity buys, then the donor is charged** | The charity clicks **Buy**. Giftly re-checks the live price, then charges the held payment, so the charity never pays out of its own pocket. |
+| **Fair pricing** | Cheaper now: the donor is charged less and the rest of the hold is released. Same item at another store: the link switches. Price went up or sold out: **no charge**. |
+| **72-hour release** | Any hold not used within 72 hours is released (voided), so the donor is never charged. |
+| **Receipt proof** | The charity uploads the store receipt; an AI vision check compares it to the chosen item and price. An admin can override. |
+| **Delivered and thank-you** | Delivered is only allowed with an accepted receipt. The donor then gets a personal thank-you note written by the AI. |
+| **Gift tracking** | Donors follow each gift: On hold → Bought → Delivered (or "Hold released, you weren't charged"). |
+| **Open books** | Public charts and tables show where the money goes, with a one-line AI summary built only from the real numbers. No emails or payment IDs are ever shown, and Anonymous donors stay anonymous. |
+| **Charity dashboard** | One table to buy held gifts, upload receipts, mark deliveries and export CSV. |
 
-## Run locally
+## Demo roles and sign-in
 
-Use Node.js 20.9 or later and Postgres. Start from a disposable demo database.
+There are no real accounts. The **demo role switcher** in the header (Public · Donor · Charity · Admin) changes the view; the server still validates every action.
+
+| Role | What you see |
+|---|---|
+| **Public** | Browse causes, charts and the public donation feed. Clicking **Donate**, **Give** or asking the Elf opens a **simulated sign-in** (display name only, no password), then returns you to what you were doing (the Elf answers your question automatically). |
+| **Donor** | Give gifts and cash, chat with the Elf, **My gifts** tracker, "You gave" column on causes. |
+| **Charity** | Pick which charity you act as. Your cause is highlighted, other causes are read-only (charities can't donate), and the **Dashboard** manages your gifts. |
+| **Admin** | Donor view plus the dashboard (receipt override) and **Elf tests**. |
+
+Demo data reset needs the `ADMIN_PASSCODE` (see [Reset the demo](#reset-the-demo)); choosing Admin in the switcher is not enough.
+
+## How the money works
+
+```
+Cash:  checkout ──► PayPal CAPTURE (charged now) ──► counted as raised
+Gift:  checkout ──► PayPal AUTHORIZE (held, not charged)
+          ├─ charity clicks Buy ──► Channel3 price re-check
+          │     ├─ same or cheaper ──► CAPTURE that amount (rest released) ──► Bought ──► receipt ──► Delivered
+          │     └─ pricier / sold out ──► blocked, never charged ──► hold released
+          ├─ charity clicks Release ──► VOID (never charged)
+          └─ 72 hours pass ──► VOID automatically (never charged)
+```
+
+- Amounts always come from **our database, Channel3 or the verified PayPal order**, never from the browser or the AI.
+- Every payment is **verified with PayPal on the server** before anything is saved.
+- PayPal keeps a hold valid for up to 29 days; the **72-hour rule is Giftly's**, enforced on page loads, when Buy is clicked, and by a scheduled job (`/api/cron/release-holds`).
+- Public totals count **only money actually charged**.
+
+## Real vs simulated
+
+| Part | Status |
+|---|---|
+| PayPal orders, authorizations (holds), captures, voids | ✅ Real API calls to the **PayPal sandbox** (test money only) |
+| Product search, live prices and availability | ✅ Real, via **Channel3** |
+| Elf recommendations, receipt checks, thank-you notes, chart summary | ✅ Real AI calls (**Google Gemini**) |
+| Database, charts, tables | ✅ Real (Postgres, AG Grid, AG Charts) |
+| Buying from the store | 🟡 Simulated: the charity buys manually; Giftly doesn't place store orders |
+| Charity payouts | 🟡 Simulated: captured money goes to the sandbox merchant account |
+| Physical delivery | 🟡 Simulated: status set by the charity, backed by the receipt check |
+| Charity "Verified" badges | 🟡 Illustrative only |
+| Sign-in and roles | 🟡 Simulated demo switcher, not real authentication |
+| Seeded donations | 🟡 Fictional demo data; their product links point to `example.com` |
+
+## Tech stack
+
+- **Next.js 16** (App Router, React 19, TypeScript) with **MUI** for the UI
+- **Postgres** on **Render**, accessed with **Prisma**
+- **PayPal** Server SDK (`@paypal/paypal-server-sdk`: Orders and Payments APIs) and PayPal JS SDK v6 buttons
+- **Channel3** product search API
+- **Google Gemini** through its OpenAI-compatible API (tool calling and image input), with a model fallback list in `lib/llm.ts`
+- **AG Grid Community** (tables) and **AG Charts Community** (charts)
+
+### Architecture (short)
+
+All money and AI logic runs on the server. Server actions create PayPal orders from database amounts (`app/give/actions.ts`, `lib/giving.ts`), verify and save them (`lib/paypal.ts`), and manage holds (`lib/holds.ts`, `lib/buy-check.ts`). The charity dashboard moves gifts through Paid → Bought → Delivered (`app/charity/actions.ts`), with receipt uploads checked by the AI (`app/api/proofs`, `lib/proof-check.ts`). The Elf is a tool-calling agent (`lib/elf/`). Public pages read safe, aggregated data only (`lib/public-data.ts`, `lib/chart-data.ts`).
+
+## Run it locally
+
+You need **Node.js 20.9+**, a **Postgres** database (Render's External Database URL works), and sandbox keys for PayPal, Channel3 and Gemini.
 
 ```powershell
 npm install
-Copy-Item .env.example .env
-# Fill in .env using your own service credentials.
-npm run db:push
-npm run db:seed
-npm run dev
+Copy-Item .env.example .env     # then fill in your own keys (never commit .env)
+npm run db:push                 # create the tables
+npm run db:seed                 # load demo data (wipes existing demo data)
+npm run dev                     # http://localhost:3000
 ```
 
-`db:seed` deletes existing demo data. Do not run it against data you need to keep. Stop the dev server before regenerating Prisma on Windows if its runtime file is locked.
+- Health check: http://localhost:3000/api/health shows which settings are present (never their values).
+- **Windows:** stop `npm run dev` before `npm run db:push`, or Prisma's files stay locked (`EPERM`).
+- Checks: `npm run typecheck` and `node --test scripts/security-audit.test.cjs`.
 
-Open [Giftly locally](http://localhost:3000) and the [health check](http://localhost:3000/api/health). Health exposes configuration booleans, not credential values.
-
-## Configuration
-
-All credentials are read from environment variables. Keep `.env` private; `.env.example` contains names and comments only.
+### Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Postgres connection string; server only |
-| `PAYPAL_CLIENT_ID` | Sandbox app client ID; server configuration |
-| `PAYPAL_CLIENT_SECRET` | Sandbox app secret; server only |
-| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | Same sandbox client ID used by checkout; intentionally public and set at build time |
-| `CHANNEL3_API_KEY` | Server-side catalog access |
-| `LLM_API_KEY` | Server-side model access |
-| `LLM_BASE_URL` | Optional OpenAI-compatible provider endpoint; defaults to Gemini |
-| `LLM_MODEL` | Optional provider model IDs, comma-separated; default fallback list is in `lib/llm.ts` |
-| `LLM_REASONING_EFFORT` | Optional provider reasoning setting |
-| `ADMIN_PASSCODE` | Required for the destructive reset endpoint; never put it in client code |
-| `CRON_SECRET` | Bearer secret for the expired-hold job |
-| `GIFT_HOLD_HOURS` | Development-only shorter hold duration, at most 72 hours; ignored in production |
-| `BUY_CHECK_SIMULATE` | Development-only `cheaper`, `pricier`, or `soldout`; ignored in production |
+| `DATABASE_URL` | Postgres connection string |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | PayPal **sandbox** app credentials (server only) |
+| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | Same client ID for the browser button (public by design, set at build time) |
+| `CHANNEL3_API_KEY` | Product search (server only) |
+| `LLM_API_KEY` | Gemini API key (server only) |
+| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_REASONING_EFFORT` | Optional; default to Gemini and the fallback model list |
+| `ADMIN_PASSCODE` | Required to reset the demo data |
+| `CRON_SECRET` | Secret for the scheduled hold-release job |
+| `GIFT_HOLD_HOURS` | Dev only: a shorter hold (1–72 h) for testing; ignored in production |
+| `BUY_CHECK_SIMULATE` | Dev only: `cheaper`, `pricier` or `soldout` to test the Buy price check; ignored in production |
 
-`NODE_ENV` is set by the runtime. Production always uses the 72-hour hold policy, capped by PayPal's expiry.
+### Testing payments (sandbox)
 
-## Architecture
+1. Sign in (simulated) and give a gift. Approve it with your **sandbox Personal** account. The gift shows **On hold**.
+2. Switch to **Charity**, open the Dashboard and click **Buy · charge donor**. The capture appears in the sandbox **Business** account.
+3. Upload a receipt (samples in [`docs/sample-receipts/`](docs/sample-receipts/)), then mark it **Delivered**.
+4. Try **Release** on another held gift: the hold is voided and the donor is never charged.
 
-Next.js App Router and React with TypeScript; MUI; Prisma/Postgres; the official PayPal server and browser SDKs; Channel3; an OpenAI-compatible LLM endpoint; AG Grid Community and AG Charts Community. Payment actions run on the server and resolve amounts from saved records or verified payment data. A donor's cash entry is validated and saved as a pending draft before its database amount is sent to PayPal.
+See the sandbox transactions by logging in at https://www.sandbox.paypal.com with the accounts from the PayPal Developer Dashboard (**Testing Tools → Sandbox Accounts**), or under **Event Logs → API Calls**.
 
-Key files: `app/give/actions.ts`, `lib/giving.ts`, `lib/paypal.ts`, `lib/holds.ts`, `lib/buy-check.ts`, `app/charity/actions.ts`, `app/api/proofs/route.ts`, `lib/public-data.ts`, and `lib/chart-data.ts`.
+## Deploy on Render
 
-## AI disclosure and privacy
+See [docs/render-setup.md](docs/render-setup.md) for the full walkthrough. In short:
 
-**Models and tools.** In the app: Google Gemini models through Gemini's OpenAI-compatible API (the Elf agent with tool calling, receipt image checks, thank-you notes and the chart caption). In development: Claude (Anthropic) for architecture, most of the code, debugging and browser testing; OpenAI Codex for polish, the buy-time price re-check and the security review.
+1. **Postgres** (paid instance recommended so it doesn't expire during judging) plus a **Web Service** from this repo.
+2. Build: `npm install && npm run build` · Start: `npx prisma db push --skip-generate && npm start` · Health check: `/api/health`.
+3. Add all environment variables above (not the dev-only ones).
+4. Add a **Cron Job** every 15 minutes to release expired holds:
+   ```
+   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://<your-service>.onrender.com/api/cron/release-holds
+   ```
 
-The Elf uses tool calls to search products and read stored cause information. Receipt comparison uses model vision. Thank-you messages and chart captions are generated from supplied gift details or aggregate facts. Model failures use explicit fallback states; a failed receipt review requires an admin decision. AI cannot authorize payments, choose charge amounts, or bypass delivery checks.
+## Reset the demo
 
-Do not enter child names, photographs, exact locations, contact details, or sensitive information in chats or uploads. Use age ranges and general regions. Receipt images and chat text are sent to the configured AI provider for the relevant task. Receipts are stored privately in the demo database. Public data excludes emails and PayPal references, masks anonymous donors, and exposes only donor-approved display names plus donation records and totals.
-
-## Validation
+Reset releases every outstanding PayPal hold first (so no sandbox donor keeps an orphaned hold), then wipes and reloads the demo data. It needs your `ADMIN_PASSCODE`:
 
 ```powershell
-npm run typecheck
-node --test scripts/security-audit.test.cjs
-npm run build
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/admin/reset -Headers @{ "x-admin-passcode" = "<ADMIN_PASSCODE>" }
 ```
 
-The isolated security tests mock payment, catalog, and database services. They do not prove sandbox settlement or cross-process Postgres locking. The build may fetch the configured Google font.
+Use your Render URL instead of `localhost:3000` to reset the live site. If PayPal can't release a hold, the reset stops without deleting anything; just try again.
 
-For a manual demo, use a new sandbox Personal buyer and the Business account associated with the configured sandbox app. Verify an authorization after gift checkout, a completed capture after Buy, and a void after Release. Test delivery without proof, then with a matching or admin-approved receipt. Development simulations exercise price changes and sold-out paths; clear them after testing.
+## Privacy and safety
 
-## Hosting and scheduled release
+- We never ask for a child's name, photo, school or exact location; only age ranges and general regions.
+- The Elf never sets amounts, never moves money, and treats product text and receipts as untrusted (instructions inside them are ignored).
+- Receipt images are stored privately and visible only to the charity that uploaded them and admins.
+- Public data excludes emails, PayPal order and authorization IDs, and personal details.
 
-See [Render setup](docs/render-setup.md). Configure a scheduler to call `POST /api/cron/release-holds` every 15 minutes with `Authorization: Bearer <CRON_SECRET>` supplied privately. Missing or incorrect credentials are rejected. The cron endpoint processes up to 100 expired holds per call; release may lag the deadline until the next successful sweep.
+## AI tools and models disclosure
 
-The reset endpoint requires the `x-admin-passcode` header matching `ADMIN_PASSCODE`; selecting Admin alone is insufficient. Reset deletes records and must only be used for disposable demo data. Before wiping, it releases (voids) every outstanding PayPal hold so no sandbox donor is left with an orphaned hold; if PayPal can't release one, the reset stops and can be retried.
+**In the app**
 
-Example (PowerShell): `Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/admin/reset -Headers @{ "x-admin-passcode" = "<ADMIN_PASSCODE>" }`
+| Model / service | Used for |
+|---|---|
+| **Google Gemini** (via its OpenAI-compatible API; default fallback list `gemini-3.1-flash-lite`, `gemini-flash-latest`, `gemini-3.5-flash`, `gemini-3.8-flash`) | The Elf agent (tool calling: product search, causes, charity info, gift recommendations, cash suggestions); receipt image checks; thank-you notes; the one-line chart summary |
 
-## Security review and submission prep
+AI output can be wrong. That's why receipts can be reviewed by an admin, and AI never decides amounts or moves money.
 
-See [security findings and validation](docs/SECURITY-REVIEW.md) and the [submission draft and recording script](docs/SUBMISSION.md).
+**In development**
 
-This is a sandbox demonstration, not a production donation service. Real authentication, charity onboarding, live payouts, settlement reconciliation, monitoring, and operational privacy controls require separate work before real-world use.
+| Tool | What it did |
+|---|---|
+| **Claude** (Anthropic), in the Claude app and Claude Code | Architecture, most of the code, debugging, and browser testing |
+| **OpenAI Codex** | UI polish and mobile layout (Step 11), the buy-time price re-check, and the security review (Step 12) |
+
+The human author designed the product, made the decisions, tested it and is responsible for the submission.
+
+## Limits (prototype)
+
+No real authentication or charity onboarding, no real payouts or store orders, and no webhook-based settlement reconciliation. PayPal and the database can't commit atomically, so rare network failures may need manual sandbox reconciliation. Details in [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md).
+
+## License
+
+MIT
