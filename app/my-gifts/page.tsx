@@ -43,9 +43,10 @@ export default async function MyGiftsPage() {
   }
 
   const gifts = await getDonorGifts(donor.id);
-  const giftOrders = gifts.filter((g) => g.item);
+  const giftOrders = gifts.filter((g) => g.item && g.payment !== "RELEASED");
   const delivered = giftOrders.filter((g) => g.item?.status === "DELIVERED").length;
-  const total = gifts.reduce((s, g) => s + g.totalCents, 0);
+  const total = gifts.filter((g) => g.payment === "CHARGED").reduce((s, g) => s + g.totalCents, 0);
+  const onHold = gifts.filter((g) => g.payment === "HELD").reduce((s, g) => s + g.totalCents, 0);
 
   return (
     <Container maxWidth="md" sx={{ py: { xs: 4, md: 6 } }}>
@@ -66,7 +67,7 @@ export default async function MyGiftsPage() {
         {[
           { label: "Gifts given", value: String(giftOrders.length) },
           { label: "Delivered", value: String(delivered) },
-          { label: "Total given", value: money(total) },
+          { label: onHold ? `Charged · ${money(onHold)} on hold` : "Total given", value: money(total) },
         ].map((t) => (
           <Paper key={t.label} elevation={0} sx={{ p: 2, border: "1px solid", borderColor: "divider", textAlign: "center" }}>
             <Typography sx={{ fontWeight: 800, fontSize: "1.6rem", color: "primary.main" }}>{t.value}</Typography>
@@ -119,7 +120,17 @@ export default async function MyGiftsPage() {
                       · {money(g.totalCents)} · {shortDate(g.paidAt)}
                     </Typography>
                     <Box sx={{ display: "flex", gap: 1, mt: 0.75, flexWrap: "wrap", alignItems: "center" }}>
-                      <StatusChip status={g.item.status} />
+                      {g.payment === "RELEASED" ? (
+                        <Box component="span" sx={{ px: 1.25, py: 0.4, borderRadius: 999, bgcolor: "#f5f5f4", color: "#57534e", fontWeight: 800, fontSize: 13 }}>
+                          Hold released
+                        </Box>
+                      ) : g.payment === "HELD" ? (
+                        <Box component="span" sx={{ px: 1.25, py: 0.4, borderRadius: 999, bgcolor: "#fef3c7", color: "#92400e", fontWeight: 800, fontSize: 13 }}>
+                          🔒 On hold
+                        </Box>
+                      ) : (
+                        <StatusChip status={g.item.status} />
+                      )}
                       {g.item.receiptChecked && (
                         <Box
                           component="span"
@@ -132,8 +143,43 @@ export default async function MyGiftsPage() {
                   </Box>
                 </Box>
 
-                <GiftTimeline status={g.item.status} paidAt={g.paidAt} boughtAt={g.item.boughtAt} deliveredAt={g.item.deliveredAt} />
+                {g.payment === "RELEASED" ? (
+                  <Box sx={{ p: 2, borderRadius: "16px", bgcolor: "#f5f5f4" }}>
+                    <Typography sx={{ fontWeight: 700 }}>Your payment hold was released. You were not charged.</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      The charity didn&apos;t buy this gift in time, so the PayPal hold was released and the money stayed with you.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <>
+                    {g.payment === "HELD" && !g.item.buyBlockedReason && (
+                      <Box sx={{ mb: 2, p: 1.5, borderRadius: "14px", bgcolor: "#fffbeb", border: "1px solid #fde68a" }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          PayPal is holding {money(g.totalCents)}. You&apos;re charged only when {g.charity.name} buys this gift
+                          {g.holdExpiresAt ? `, and the hold is released automatically on ${shortDate(g.holdExpiresAt)} if they don't` : ""}.
+                        </Typography>
+                      </Box>
+                    )}
+                    <GiftTimeline
+                      status={g.item.status}
+                      held={g.payment === "HELD"}
+                      paidAt={g.paidAt}
+                      boughtAt={g.item.boughtAt}
+                      deliveredAt={g.item.deliveredAt}
+                    />
+                  </>
+                )}
 
+                {g.payment === "HELD" && g.item.buyBlockedReason && (
+                  <Typography role="status" sx={{ color: "#92400e", mb: 2 }}>
+                    {g.item.buyBlockedReason === "PRICE_UP" ? "The price changed" : "The item sold out"}, so you won&apos;t be charged. The hold will be released automatically.
+                  </Typography>
+                )}
+                {g.payment === "CHARGED" && g.authorizedCents != null && g.totalCents < g.authorizedCents && (
+                  <Typography sx={{ color: "primary.main", mb: 2 }}>
+                    You paid {money(g.totalCents)} (less than the {money(g.authorizedCents)} held).
+                  </Typography>
+                )}
                 {g.item.status === "DELIVERED" && (
                   <Box sx={{ mt: 2.5, p: 2, borderRadius: "16px", bgcolor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
                     <Typography variant="overline" sx={{ color: "primary.main" }}>

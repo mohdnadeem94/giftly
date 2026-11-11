@@ -23,6 +23,14 @@ enum OrderStatus {
   CANCELLED
 }
 
+// How the PayPal money stands. Gifts are AUTHORIZED (held) at checkout and CAPTURED when the
+// charity buys the gift. Unused holds are VOIDED (released) after 72 hours. Cash is CAPTURED at once.
+enum PaymentState {
+  CAPTURED
+  AUTHORIZED
+  VOIDED
+}
+
 enum ItemStatus {
   PENDING // draft chosen by the donor, not yet paid
   PAID
@@ -103,6 +111,12 @@ model Order {
   cashCents     Int         @default(0)
   paypalOrderId String?     @unique // PRIVATE: never return from public endpoints
   status        OrderStatus @default(PENDING)
+  paymentState  PaymentState @default(CAPTURED)
+  paypalAuthorizationId String? @unique // PRIVATE: PayPal hold ID, never return from public endpoints
+  holdExpiresAt DateTime? // when an unused hold is released automatically (72h after checkout)
+  authorizedCents Int? // Original donor-approved hold, retained after a cheaper capture
+  capturedAt    DateTime? // when the donor was actually charged
+  voidedAt      DateTime? // when the hold was released
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -126,6 +140,8 @@ model OrderItem {
   imageUrl                   String?
   priceAtRecommendationCents Int
   priceAtPaymentCents        Int?
+  buyBlockedReason           String? // "PRICE_UP" | "SOLD_OUT"
+  buyCheckedAt               DateTime?
   ageRange                   String?
   status                     ItemStatus @default(PENDING)
   boughtAt                   DateTime? // when the charity marked it Bought

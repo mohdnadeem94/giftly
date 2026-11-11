@@ -23,6 +23,7 @@ export default async function SuccessPage({ searchParams }: { searchParams: Prom
       type: true,
       totalCents: true,
       status: true,
+      paymentState: true,
       charity: { select: { name: true, slug: true } },
       items: { select: { productTitle: true, status: true } },
     },
@@ -30,6 +31,7 @@ export default async function SuccessPage({ searchParams }: { searchParams: Prom
   if (!order) notFound();
 
   const item = order.items[0];
+  const held = order.paymentState === "AUTHORIZED";
   const stepIndex = item ? JOURNEY.indexOf(item.status as (typeof JOURNEY)[number]) : -1;
 
   return (
@@ -55,7 +57,7 @@ export default async function SuccessPage({ searchParams }: { searchParams: Prom
           Thank you!
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          PayPal confirmed your {order.type === "CASH" ? "donation" : "gift"} of{" "}
+          {held ? "PayPal is holding your gift of" : `PayPal confirmed your ${order.type === "CASH" ? "donation" : "gift"} of`}{" "}
           <Box component="strong" sx={{ color: "text.primary" }}>
             {money(order.totalCents)}
           </Box>{" "}
@@ -70,20 +72,28 @@ export default async function SuccessPage({ searchParams }: { searchParams: Prom
           <Box sx={{ textAlign: "left", bgcolor: "#faf7f2", borderRadius: "16px", p: 2.5, mb: 3 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1, mb: 2 }}>
               <Typography sx={{ fontWeight: 800 }}>{item.productTitle}</Typography>
-              <StatusChip status={item.status} />
+              {held ? (
+                <Box component="span" sx={{ px: 1.25, py: 0.4, borderRadius: 999, bgcolor: "#fef3c7", color: "#92400e", fontWeight: 800, fontSize: 13, whiteSpace: "nowrap" }}>
+                  🔒 On hold
+                </Box>
+              ) : (
+                <StatusChip status={item.status} />
+              )}
             </Box>
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
               {JOURNEY.map((s, i) => (
                 <Box key={s} sx={{ textAlign: "center" }}>
                   <Box sx={{ height: 6, borderRadius: 999, bgcolor: i <= stepIndex ? "primary.main" : "#e7e5e4", mb: 0.75 }} />
                   <Typography variant="caption" sx={{ fontWeight: 700, color: i <= stepIndex ? "primary.main" : "text.secondary" }}>
-                    {s === "PAID" ? "Paid" : s === "BOUGHT" ? "Bought" : "Delivered"}
+                    {s === "PAID" ? (held ? "On hold" : "Paid") : s === "BOUGHT" ? "Bought" : "Delivered"}
                   </Typography>
                 </Box>
               ))}
             </Box>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              Next, the charity buys it and uploads a receipt. Once the Elf checks it, the gift is marked Delivered.
+              {held
+                ? `You haven't been charged yet. You're charged only when ${order.charity.name} buys this gift; if they don't within 72 hours, the hold is released automatically. Then they upload a receipt, the Elf checks it, and the gift is marked Delivered.`
+                : "Next, the charity buys it and uploads a receipt. Once the Elf checks it, the gift is marked Delivered."}
             </Typography>
           </Box>
         ) : (

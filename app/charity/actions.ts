@@ -1,14 +1,17 @@
 "use server";
 
 import { after } from "next/server";
-import { AdminDecision, ItemStatus, OrderStatus } from "@prisma/client";
+import { AdminDecision, ItemStatus, OrderStatus, PaymentState } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getActingCharity, giftRowSelect, toGiftRow, type CharityGiftRow } from "@/lib/charity-data";
 import { GIFT_FLOW, isAllowedTransition, type GiftFlowStatus } from "@/lib/gift-status";
 import { proofAllowsDelivery } from "@/lib/proof-check";
+import { HoldError, captureHold, releaseHold } from "@/lib/holds";
+import { checkBeforeBuy } from "@/lib/buy-check";
+import { money } from "@/lib/format";
 import { createThankYouForItem } from "@/lib/thank-you";
 
-type Result = { ok: true; rows: CharityGiftRow[]; skipped: number } | { ok: false; error: string };
+type Result = { ok: true; rows: CharityGiftRow[]; skipped: number; warning?: string } | { ok: false; error: string; rows?: CharityGiftRow[] };
 
 /**
  * Move gifts one step forward (PAID -> BOUGHT -> DELIVERED).
@@ -17,6 +20,8 @@ type Result = { ok: true; rows: CharityGiftRow[]; skipped: number } | { ok: fals
  *  - only gifts that belong to the acting charity and were actually paid,
  *  - only the next step in the flow,
  *  - DELIVERED only with a matching (or admin-approved) receipt.
+ * Moving a gift to BOUGHT first CHARGES the donor's held PayPal payment, so the charity has the money
+ * to buy the gift and never pays out of its own pocket. If the charge fails, the gift stays Paid (held).
  */
 export async function updateGiftStatus(itemIds: string[], to: string): Promise<Result> {
   const charity = await getActingCharity();
@@ -33,6 +38,12 @@ export async function updateGiftStatus(itemIds: string[], to: string): Promise<R
     select: {
       id: true,
       status: true,
+      orderId: true,
+      externalId: true,
+      merchant: true,
+      productUrl: true,
+      buyBlockedReason: true,
+      order: { select: { totalCents: true, paymentState: true } },
       proofs: { orderBy: { createdAt: "desc" }, take: 1, select: { aiResult: true, adminDecision: true } },
     },
   });
@@ -48,12 +59,52 @@ export async function updateGiftStatus(itemIds: string[], to: string): Promise<R
     }
     allowed = withProof;
   }
+  // Buying: charge each held payment first. Only gifts whose charge succeeded move on.
+  let chargeError: string | null = null;
+  if (to === "BOUGHT") {
+    const charged: typeof allowed = [];
+    for (const i of allowed) {
+      try {
+        if (i.order.paymentState === PaymentState.AUTHORIZED) {
+          // Once blocked, a gift stays uncharged until its hold is released.
+          if (i.buyBlockedReason) {
+            chargeError = "This gift is blocked. The donor hasn't been charged; the hold will be released automatically.";
+            continue;
+          }
+          const check = await checkBeforeBuy(i);
+          if (check.action === "BLOCK") {
+            await db.orderItem.update({ where: { id: i.id }, data: {
+              buyBlockedReason: check.reason, buyCheckedAt: new Date(),
+            } });
+            chargeError = check.reason === "PRICE_UP"
+              ? `Price went up from ${money(i.order.totalCents)} to ${money(check.liveCents!)}. The donor hasn't been charged; the hold will be released automatically.`
+              : "This item is sold out everywhere. The donor hasn't been charged; the hold will be released automatically.";
+            continue;
+          }
+          await db.orderItem.update({ where: { id: i.id }, data: {
+            merchant: check.merchant, productUrl: check.productUrl, buyCheckedAt: new Date(),
+          } });
+          await captureHold(i.orderId, check.cents);
+          await db.orderItem.update({ where: { id: i.id }, data: { buyBlockedReason: null } });
+        }
+        charged.push(i);
+      } catch (err) {
+        chargeError = err instanceof HoldError ? err.message : "PayPal couldn't charge the held payment.";
+        if (!(err instanceof HoldError)) console.error("captureHold failed", err);
+      }
+    }
+    allowed = charged;
+  }
+
   const allowedIds = allowed.map((i) => i.id);
   const skipped = ids.length - allowedIds.length;
   if (allowedIds.length === 0) {
     return {
       ok: false,
-      error: to === "BOUGHT" ? "Only gifts marked Paid can be marked Bought." : "Only gifts marked Bought can be marked Delivered.",
+      rows: (await db.orderItem.findMany({ where: { id: { in: items.map((i) => i.id) } }, select: giftRowSelect })).map(toGiftRow),
+      error:
+        chargeError ??
+        (to === "BOUGHT" ? "Only gifts marked Paid can be marked Bought." : "Only gifts marked Bought can be marked Delivered."),
     };
   }
 
@@ -71,8 +122,27 @@ export async function updateGiftStatus(itemIds: string[], to: string): Promise<R
     });
   }
 
-  const rows = await db.orderItem.findMany({ where: { id: { in: allowedIds } }, select: giftRowSelect });
-  return { ok: true, rows: rows.map(toGiftRow), skipped };
+  const rows = await db.orderItem.findMany({ where: { id: { in: items.map((i) => i.id) } }, select: giftRowSelect });
+  return { ok: true, rows: rows.map(toGiftRow), skipped, warning: chargeError ?? undefined };
+}
+
+/**
+ * The charity can't buy this gift: release the donor's payment hold so they are never charged.
+ * Only gifts that are still held (Paid, not yet bought) can be released.
+ */
+export async function releaseGift(itemId: string): Promise<{ ok: true; removedId: string } | { ok: false; error: string }> {
+  const charity = await getActingCharity();
+  if (!charity) return { ok: false, error: "Switch to the Charity role to update gifts." };
+
+  const item = await db.orderItem.findFirst({
+    where: { id: String(itemId), status: ItemStatus.PAID, order: { charityId: charity.id, status: OrderStatus.PAID, paymentState: PaymentState.AUTHORIZED } },
+    select: { id: true, orderId: true },
+  });
+  if (!item) return { ok: false, error: "Only gifts that are still on hold can be released." };
+
+  const released = await releaseHold(item.orderId, "CHARITY_RELEASED");
+  if (!released) return { ok: false, error: "PayPal couldn't release the hold right now. Please try again." };
+  return { ok: true, removedId: item.id };
 }
 
 /** Admin only: approve or reject the latest receipt for a gift (used when the AI says mismatch/unclear). */

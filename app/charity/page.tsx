@@ -27,11 +27,19 @@ export default async function CharityDashboardPage() {
   const [rows, summary] = await Promise.all([getCharityGifts(charity.id), getCharitySummary(charity.id)]);
   const toBuy = rows.filter((r) => r.status === "PAID");
   const toDeliver = rows.filter((r) => r.status === "BOUGHT");
+  const held = rows.filter((r) => r.held);
 
   const tiles = [
     { icon: <ShoppingBagRoundedIcon />, label: "To buy", value: String(toBuy.length), sub: money(toBuy.reduce((s, r) => s + r.priceCents, 0)), color: "#92400e", bg: "#fef3c7" },
     { icon: <LocalShippingRoundedIcon />, label: "To deliver", value: String(toDeliver.length), sub: "bought, awaiting delivery", color: "#1e40af", bg: "#dbeafe" },
-    { icon: <CardGiftcardRoundedIcon />, label: "Gifts received", value: money(rows.reduce((s, r) => s + r.priceCents, 0)), sub: `${rows.length} gifts`, color: "#be123c", bg: "#ffe4e6" },
+    {
+      icon: <CardGiftcardRoundedIcon />,
+      label: "Gifts received",
+      value: money(rows.filter((r) => !r.held).reduce((s, r) => s + r.priceCents, 0)),
+      sub: `${rows.filter((r) => !r.held).length} charged${held.length ? ` · ${money(held.reduce((s, r) => s + r.priceCents, 0))} on hold` : ""}`,
+      color: "#be123c",
+      bg: "#ffe4e6",
+    },
     { icon: <VolunteerActivismRoundedIcon />, label: "Cash received", value: money(summary.cashCents), sub: `${summary.cashCount} donations`, color: "#166534", bg: "#dcfce7" },
   ];
 

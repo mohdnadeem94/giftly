@@ -1,10 +1,12 @@
 // Public, read-only data (server only).
 // HARD RULE: every function here uses explicit `select`s and returns only safe fields.
 // Never return donor emails, PayPal order IDs, or internal IDs of donors.
-import { ItemStatus, NeedStatus, OrderStatus, OrderType } from "@prisma/client";
+import { ItemStatus, NeedStatus, OrderStatus, OrderType, PaymentState } from "@prisma/client";
 import { db } from "@/lib/db";
 
 const COUNTED = [OrderStatus.RECEIVED, OrderStatus.PAID];
+// Only money that was actually charged counts as raised. Gift payments on hold (not yet bought) don't.
+const COUNTED_WHERE = { status: { in: COUNTED }, paymentState: PaymentState.CAPTURED };
 
 export type PublicStats = {
   totalRaisedCents: number;
@@ -16,12 +18,12 @@ export type PublicStats = {
 
 export async function getPublicStats(): Promise<PublicStats> {
   const [raised, giftsGiven, giftsDelivered, activeCauses, donorGroups, guestOrders] = await Promise.all([
-    db.order.aggregate({ _sum: { totalCents: true }, where: { status: { in: COUNTED } } }),
-    db.orderItem.count({ where: { status: { in: [ItemStatus.PAID, ItemStatus.BOUGHT, ItemStatus.DELIVERED] } } }),
-    db.orderItem.count({ where: { status: ItemStatus.DELIVERED } }),
+    db.order.aggregate({ _sum: { totalCents: true }, where: { ...COUNTED_WHERE } }),
+    db.orderItem.count({ where: { status: { in: [ItemStatus.PAID, ItemStatus.BOUGHT, ItemStatus.DELIVERED] }, order: COUNTED_WHERE } }),
+    db.orderItem.count({ where: { status: ItemStatus.DELIVERED, order: COUNTED_WHERE } }),
     db.charity.count(),
-    db.order.groupBy({ by: ["donorId"], where: { status: { in: COUNTED }, donorId: { not: null } } }),
-    db.order.count({ where: { status: { in: COUNTED }, donorId: null } }),
+    db.order.groupBy({ by: ["donorId"], where: { ...COUNTED_WHERE, donorId: { not: null } } }),
+    db.order.count({ where: { ...COUNTED_WHERE, donorId: null } }),
   ]);
 
   return {
@@ -48,7 +50,7 @@ export type PublicCause = {
 async function raisedByCharity(): Promise<Map<string, number>> {
   const sums = await db.order.groupBy({
     by: ["charityId"],
-    where: { status: { in: COUNTED } },
+    where: { ...COUNTED_WHERE },
     _sum: { totalCents: true },
   });
   return new Map(sums.map((s) => [s.charityId, s._sum.totalCents ?? 0]));
@@ -125,13 +127,13 @@ export async function getCause(slug: string): Promise<PublicCauseDetail | null> 
   if (!c) return null;
 
   const [raised, items, recent] = await Promise.all([
-    db.order.aggregate({ _sum: { totalCents: true }, where: { charityId: c.id, status: { in: COUNTED } } }),
+    db.order.aggregate({ _sum: { totalCents: true }, where: { charityId: c.id, ...COUNTED_WHERE } }),
     db.orderItem.findMany({
-      where: { order: { charityId: c.id, status: { in: COUNTED } } },
+      where: { order: { charityId: c.id, ...COUNTED_WHERE } },
       select: { status: true },
     }),
     db.order.findMany({
-      where: { charityId: c.id, status: { in: COUNTED } },
+      where: { charityId: c.id, ...COUNTED_WHERE },
       orderBy: { createdAt: "desc" },
       take: 100,
       select: {

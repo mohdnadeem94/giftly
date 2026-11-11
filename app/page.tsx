@@ -30,13 +30,13 @@ const STEPS = [
   },
   {
     icon: <PaymentsRoundedIcon />,
-    title: "Pay with PayPal",
-    text: "Your payment is tied to the exact item you chose. The amount always comes from our records.",
+    title: "PayPal holds it",
+    text: "PayPal holds the exact price of the item you chose. You're charged only when the charity buys it, and the hold is released after 72 hours if it doesn't.",
   },
   {
     icon: <ReceiptLongRoundedIcon />,
-    title: "Charity shows proof",
-    text: "The charity buys the gift and uploads the receipt. The Elf checks it against your item and price.",
+    title: "Charity buys & shows proof",
+    text: "Buying charges your hold, so the charity never pays out of pocket. It uploads the receipt and the Elf checks it against your item and price.",
   },
   {
     icon: <LocalShippingRoundedIcon />,
@@ -94,7 +94,7 @@ export default async function Home() {
               </Typography>
               <Typography sx={{ fontSize: { xs: "1.1rem", md: "1.25rem" }, opacity: 0.9, maxWidth: 540, mb: 4 }}>
                 Help anyone in need: a child, a family, an elder or a whole community. Tell the Elf who you&apos;d like
-                to help, and it finds a real gift or the cause where cash does the most good. Follow your gift from payment to receipt review and delivery updates.
+                to help, and it finds a real gift or the cause where cash does the most good. PayPal holds your gift payment, and you&apos;re charged only when the charity buys it.
               </Typography>
               <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
                 <LinkButton

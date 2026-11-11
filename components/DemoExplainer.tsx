@@ -8,15 +8,15 @@ export default function DemoExplainer({ compact = false }: { compact?: boolean }
       sx={{ p: { xs: 2, sm: 3 }, border: "1px solid #bbf7d0", bgcolor: "#f0fdf4" }}>
       <Typography component="h2" variant="h6" sx={{ mb: 1 }}>A real workflow. A sandbox demo.</Typography>
       <Typography variant="body2" color="text.secondary">
-        PayPal uses test funds only. Payment is captured at checkout, before delivery; no real money moves.
+        PayPal uses test funds only; no real money moves. Cash is charged at checkout. For gifts, PayPal only holds your payment: you&apos;re charged when the charity buys your gift, and the hold is released automatically if it doesn&apos;t within 72 hours.
       </Typography>
       {!compact && (
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 3, mt: 2.5 }}>
           <Box>
             <Typography sx={{ fontWeight: 800, mb: 0.75 }}>What you can try</Typography>
             <Typography variant="body2" color="text.secondary">
-              Ask the AI Elf for gift ideas, browse products from real stores, and approve a sandbox payment.
-              Switch to the charity view to mark a gift Bought and upload a receipt. Delivery requires
+              Ask the AI Elf for gift ideas, browse products from real stores, and approve a sandbox payment hold.
+              Switch to the charity view and click Buy to charge the hold, then upload a receipt. Delivery requires
               accepted proof, then a thank-you is generated. AI checks can be reviewed by an admin.
             </Typography>
           </Box>

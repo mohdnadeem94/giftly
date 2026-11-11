@@ -9,19 +9,21 @@ function fmt(d: string | null) {
 /** Paid -> Bought -> Delivered progress with dates. Server-safe (no client hooks). */
 export default function GiftTimeline({
   status,
+  held = false,
   paidAt,
   boughtAt,
   deliveredAt,
 }: {
   status: string;
+  held?: boolean; // payment approved but only held by PayPal until the charity buys the gift
   paidAt: string;
   boughtAt: string | null;
   deliveredAt: string | null;
 }) {
   const reached = status === "DELIVERED" ? 3 : status === "BOUGHT" ? 2 : 1;
   const steps = [
-    { label: "Paid", icon: "💳", date: fmt(paidAt), note: "PayPal confirmed" },
-    { label: "Bought", icon: "🛍️", date: fmt(boughtAt), note: "Charity bought it" },
+    { label: held ? "On hold" : "Paid", icon: held ? "🔒" : "💳", date: fmt(paidAt), note: held ? "PayPal is holding it" : "PayPal confirmed" },
+    { label: "Bought", icon: "🛍️", date: fmt(boughtAt), note: "Charged & bought" },
     { label: "Delivered", icon: "🎁", date: fmt(deliveredAt), note: "It reached them" },
   ];
 

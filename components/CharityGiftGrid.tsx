@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import LockClockRoundedIcon from "@mui/icons-material/LockClockRounded";
 import { AgGridReact, type CustomCellRendererProps } from "ag-grid-react";
 import {
   type CellValueChangedEvent,
@@ -26,7 +27,7 @@ import ShoppingBagRoundedIcon from "@mui/icons-material/ShoppingBagRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 import ProofDialog from "@/components/ProofDialog";
-import { updateGiftStatus } from "@/app/charity/actions";
+import { releaseGift, updateGiftStatus } from "@/app/charity/actions";
 import { gridTheme } from "@/components/grid/agSetup";
 import type { CharityGiftRow } from "@/lib/charity-data";
 import { STATUS_LABEL, STATUS_STYLE, nextStatus } from "@/lib/gift-status";
@@ -72,14 +73,29 @@ function ItemCell(p: CustomCellRendererProps<GridRow>) {
   );
 }
 
+/** "31h left" until an unused hold is released. */
+function holdLeft(iso: string | null): string {
+  if (!iso) return "";
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "releasing";
+  const h = Math.floor(ms / 3_600_000);
+  return h >= 1 ? `${h}h left` : `${Math.max(1, Math.ceil(ms / 60_000))}m left`;
+}
+
 function StatusCell(p: CustomCellRendererProps<GridRow>) {
   if (!p.data || isTotal(p.data)) return null;
   const s = STATUS_STYLE[p.value as string] ?? STATUS_STYLE.PENDING;
   const editable = !!nextStatus(p.value as string);
+  const held = p.data.held && p.value === "PAID";
   return (
     <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.5 }}>
-      <Box component="span" sx={{ px: 1.25, py: 0.4, borderRadius: 999, bgcolor: s.bg, color: s.fg, fontWeight: 800, fontSize: 13 }}>
-        {STATUS_LABEL[p.value as string] ?? p.value}
+      <Box
+        component="span"
+        title={held ? "The donor's payment is on hold. It is charged when you click Buy, or released automatically." : undefined}
+        sx={{ px: 1.25, py: 0.4, borderRadius: 999, bgcolor: s.bg, color: s.fg, fontWeight: 800, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 0.5, whiteSpace: "nowrap" }}
+      >
+        {held && <LockClockRoundedIcon sx={{ fontSize: 15 }} />}
+        {held ? `Held · ${holdLeft(p.data.holdExpiresAt)}` : (STATUS_LABEL[p.value as string] ?? p.value)}
       </Box>
       {editable && (
         <Box component="span" sx={{ color: "#a8a29e", fontSize: 11 }} aria-hidden="true">
@@ -88,6 +104,16 @@ function StatusCell(p: CustomCellRendererProps<GridRow>) {
       )}
     </Box>
   );
+}
+
+function AvailabilityCell(p: CustomCellRendererProps<GridRow>) {
+  if (!p.data || isTotal(p.data)) return null;
+  const label = p.data.availability;
+  const good = label === "Available" || label === "Available for less";
+  const warning = ["Sold out", "Price went up", "Check unavailable", "Stock unconfirmed"].includes(label);
+  return <Box component="span" sx={{ px: 1, py: 0.4, borderRadius: 999, fontWeight: 700, fontSize: 12,
+    bgcolor: good ? "#dcfce7" : warning ? "#fef3c7" : "#f5f5f4",
+    color: good ? "#166534" : warning ? "#92400e" : "#57534e" }}>{label}</Box>;
 }
 
 function ProofCell(p: CustomCellRendererProps<GridRow>) {
@@ -110,7 +136,29 @@ function ProofCell(p: CustomCellRendererProps<GridRow>) {
   );
 }
 
-type GridContext = { openProof: (row: CharityGiftRow) => void; markBought: (row: CharityGiftRow) => void };
+type GridContext = {
+  openProof: (row: CharityGiftRow) => void;
+  markBought: (row: CharityGiftRow) => void;
+  release: (row: CharityGiftRow) => void;
+};
+
+/** Release a held gift: two clicks, so it can't happen by accident. */
+function ReleaseButton({ onConfirm }: { onConfirm: () => void }) {
+  const [armed, setArmed] = useState(false);
+  return (
+    <Button
+      size="small"
+      variant="text"
+      color={armed ? "error" : "inherit"}
+      sx={{ textTransform: "none", fontWeight: 700, fontSize: 12, minWidth: 0, px: 0.75, color: armed ? undefined : "text.secondary" }}
+      onClick={() => (armed ? onConfirm() : setArmed(true))}
+      onBlur={() => setArmed(false)}
+      title="Can't buy this gift? Release the hold so the donor is never charged."
+    >
+      {armed ? "Confirm release" : "Release"}
+    </Button>
+  );
+}
 
 function ActionCell(p: CustomCellRendererProps<GridRow, unknown, GridContext>) {
   const row = p.data;
@@ -119,7 +167,28 @@ function ActionCell(p: CustomCellRendererProps<GridRow, unknown, GridContext>) {
   const sx = { textTransform: "none", fontWeight: 700, borderRadius: 999, py: 0.25, px: 1.25, minWidth: 0, fontSize: 12.5 } as const;
   return (
     <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-      {row.status === "PAID" && (
+      {row.status === "PAID" && row.held && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          {row.buyBlockedReason ? (
+            <Box component="span" sx={{ bgcolor: "#fef3c7", color: "#92400e", borderRadius: 999, px: 1, fontSize: 12, fontWeight: 700 }}>
+              {row.buyBlockedReason === "PRICE_UP" ? "Price went up" : "Sold out"}
+            </Box>
+          ) : (
+          <Button
+            size="small"
+            variant="contained"
+            sx={sx}
+            startIcon={<ShoppingBagRoundedIcon sx={{ fontSize: 16 }} />}
+            onClick={() => ctx.markBought(row)}
+            title="Charges the donor's held payment so you have the money to buy this gift."
+          >
+            Buy · charge donor
+          </Button>
+          )}
+          <ReleaseButton onConfirm={() => ctx.release(row)} />
+        </Box>
+      )}
+      {row.status === "PAID" && !row.held && (
         <Button size="small" variant="outlined" sx={sx} startIcon={<ShoppingBagRoundedIcon sx={{ fontSize: 16 }} />} onClick={() => ctx.markBought(row)}>
           Mark Bought
         </Button>
@@ -152,7 +221,7 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
   const [quickFilter, setQuickFilter] = useState("");
   const [selectedCount, setSelectedCount] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<{ severity: "success" | "error" | "info"; text: string } | null>(null);
+  const [toast, setToast] = useState<{ severity: "success" | "error" | "info" | "warning"; text: string } | null>(null);
   const [counts, setCounts] = useState(() => countByStatus(initialRows));
   const [dialogRow, setDialogRow] = useState<CharityGiftRow | null>(null);
 
@@ -208,9 +277,10 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
       {
         field: "status" as never,
         headerName: "Status",
-        width: 150,
+        width: 165,
         cellRenderer: StatusCell,
-        editable: (p) => !isTotal(p.data) && !!nextStatus((p.data as CharityGiftRow)?.status),
+        // Held gifts are bought with the "Buy" button so the charge is explicit, not via the dropdown.
+        editable: (p) => !isTotal(p.data) && !(p.data as CharityGiftRow).held && !!nextStatus((p.data as CharityGiftRow)?.status),
         cellEditor: "agSelectCellEditor",
         cellEditorParams: (p: { data: CharityGiftRow }) => {
           const next = nextStatus(p.data.status);
@@ -221,7 +291,9 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
           return n ? `Double-click to mark ${STATUS_LABEL[n]}` : undefined;
         },
       },
-      { colId: "next", headerName: "Next step", width: 165, cellRenderer: ActionCell, sortable: false, filter: false },
+      { field: "availability" as never, headerName: "Availability", width: 175, cellRenderer: AvailabilityCell,
+        tooltipValueGetter: (p) => p.data && !isTotal(p.data) ? p.data.availabilityDetails : undefined },
+      { colId: "next", headerName: "Next step", width: 250, cellRenderer: ActionCell, sortable: false, filter: false },
       { field: "donor" as never, headerName: "Donor", flex: 1, minWidth: 130 },
       { field: "proof" as never, headerName: "Receipt", width: 120, cellRenderer: ProofCell, onCellClicked: (e) => { if (e.data && !isTotal(e.data)) setDialogRow(e.data); } },
       {
@@ -280,6 +352,7 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
     setBusy(false);
     if (!res.ok) {
       e.node.setDataValue("status", e.oldValue); // revert
+      if (res.rows) applyUpdates(res.rows);
       setToast({ severity: "error", text: res.error });
       return;
     }
@@ -290,6 +363,7 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
   async function markSelectedBought() {
     const api = apiRef.current;
     if (!api) return;
+    const selected = api.getSelectedRows().filter((r): r is CharityGiftRow => !isTotal(r));
     const ids = api
       .getSelectedRows()
       .filter((r): r is CharityGiftRow => !isTotal(r))
@@ -299,14 +373,22 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
     const res = await updateGiftStatus(ids, "BOUGHT");
     setBusy(false);
     if (!res.ok) {
+      if (res.rows) applyUpdates(res.rows);
       setToast({ severity: "error", text: res.error });
       return;
     }
     api.deselectAll();
     applyUpdates(res.rows);
-    setToast({
-      severity: "success",
-      text: `${res.rows.length} gift${res.rows.length === 1 ? "" : "s"} marked Bought${res.skipped ? ` (${res.skipped} skipped)` : ""}.`,
+    const bought = res.rows.filter((r) => r.status === "BOUGHT" && selected.some((old) => old.id === r.id && old.status === "PAID"));
+    const details = bought.flatMap((r) => {
+      const before = selected.find((old) => old.id === r.id);
+      if (!before?.held) return [];
+      const savings = r.priceCents < before.priceCents ? `Donor charged ${money(r.priceCents)} (was ${money(before.priceCents)} held, the rest was released).` : "";
+      const store = r.merchant !== before.merchant ? `Buy from ${r.merchant}.` : "";
+      return savings || store ? [`${savings} ${store} Buy it now, then upload the receipt.`] : [];
+    });
+    setToast({ severity: res.warning ? "warning" : "success", text:
+      `${bought.length} gifts bought${res.skipped ? `, ${res.skipped} skipped` : ""}. ${details.join(" ")} ${res.warning ?? ""}`.trim(),
     });
   }
 
@@ -314,13 +396,36 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
     setBusy(true);
     const res = await updateGiftStatus([row.id], "BOUGHT");
     setBusy(false);
-    if (!res.ok) return setToast({ severity: "error", text: res.error });
+    if (!res.ok) {
+      if (res.rows) applyUpdates(res.rows);
+      return setToast({ severity: "error", text: res.error });
+    }
     applyUpdates(res.rows);
-    setToast({ severity: "success", text: `“${row.productTitle.slice(0, 40)}” marked Bought. Next: upload its receipt.` });
+    const updated = res.rows.find((r) => r.id === row.id) ?? row;
+    setToast({
+      severity: res.warning ? "warning" : "success",
+      text: res.warning ?? (row.held
+        ? `Donor charged ${money(updated.priceCents)}${updated.priceCents < row.priceCents ? ` (was ${money(row.priceCents)} held, the rest was released)` : ""}.${updated.merchant !== row.merchant ? ` Buy from ${updated.merchant}.` : ""} Buy it now, then upload the receipt.`
+        : `Gift marked Bought. Next: upload its receipt.`),
+    });
+  }
+
+  async function releaseOne(row: CharityGiftRow) {
+    setBusy(true);
+    const res = await releaseGift(row.id);
+    setBusy(false);
+    if (!res.ok) return setToast({ severity: "error", text: res.error });
+    apiRef.current?.applyTransaction({ remove: [row] });
+    refreshTotals();
+    setToast({ severity: "info", text: `Hold released for “${row.productTitle.slice(0, 40)}”. The donor won't be charged.` });
   }
 
   const gridContext = useMemo<GridContext>(
-    () => ({ openProof: (row) => setDialogRow(row), markBought: (row) => void markOneBought(row) }),
+    () => ({
+      openProof: (row) => setDialogRow(row),
+      markBought: (row) => void markOneBought(row),
+      release: (row) => void releaseOne(row),
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
@@ -335,7 +440,7 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
     apiRef.current?.exportDataAsCsv({
       fileName: `giftly-${charitySlug}-gifts.csv`,
       skipPinnedBottom: false,
-      columnKeys: ["productTitle", "ageRange", "priceCents", "status", "donor", "proof", "updatedAt"],
+      columnKeys: ["productTitle", "ageRange", "priceCents", "status", "availability", "donor", "proof", "updatedAt"],
       processCellCallback: (p) => {
         const field = p.column.getColDef().field;
         if (field === "priceCents" && typeof p.value === "number") return (p.value / 100).toFixed(2);
@@ -380,7 +485,10 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
           sx={{ width: { xs: "100%", sm: 220 } }}
         />
         <Button variant="contained" startIcon={<ShoppingBagRoundedIcon />} disabled={!selectedCount || busy} onClick={markSelectedBought}>
-          Mark {selectedCount || ""} as Bought
+          Buy {selectedCount || ""} selected
+        </Button>
+        <Button variant="outlined" onClick={() => window.location.reload()} disabled={busy}>
+          Refresh availability
         </Button>
         <Button variant="outlined" startIcon={<DownloadRoundedIcon />} onClick={exportCsv}>
           Export CSV
@@ -418,8 +526,9 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
       )}
 
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
-        Use “Next step” to move each gift forward: Paid → Bought → (receipt checked) → Delivered. Every change is checked on the
-        server, and Delivered needs a matching or admin-approved receipt. The CSV contains only {charityName}&apos;s records.
+        Availability is checked when this page loads; hover over its badge for price, store, and check time. Buy checks again before charging. Use “Next step” to move each gift forward: Paid (held) → Buy → (receipt checked) → Delivered. A new gift&apos;s payment is
+        only held by PayPal: clicking Buy charges the donor so you have the money to buy it. Holds you don&apos;t use are released
+        automatically after 72 hours, and the donor is never charged. Delivered needs a matching or admin-approved receipt. The CSV contains only {charityName}&apos;s records.
       </Typography>
 
       <ProofDialog

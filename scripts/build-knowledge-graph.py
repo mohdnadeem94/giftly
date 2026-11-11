@@ -43,7 +43,7 @@ models={"Charity":"Cause: slug, story, region (general only), category, faqText,
 "Need":"Wishlist item: title, ageGroup (never a child's name), targetPriceCents, status OPEN/FUNDED/FULFILLED.",
 "Donor":"displayName, email (PRIVATE), anonymous flag.",
 "Order":"type CASH/GIFT/HYBRID, totalCents, cashCents, paypalOrderId (PRIVATE, unique), status PENDING/RECEIVED/PAID/CANCELLED.",
-"OrderItem":"Product snapshot: externalId (Channel3), title, merchant, url, prices at recommendation/payment, status PENDING/PAID/BOUGHT/DELIVERED, boughtAt, deliveredAt.",
+"OrderItem":"Product snapshot: externalId (Channel3), title, merchant, url, prices at recommendation/payment, status PENDING/PAID/BOUGHT/DELIVERED, boughtAt, deliveredAt, buyBlockedReason, buyCheckedAt.",
 "Proof":"Receipt image bytes in Postgres, aiResult, aiNotes, adminDecision.",
 "Message":"THANK_YOU / UPDATE text attached to an Order.",
 "AgentLog":"Elf session log: userMessage, toolsCalled, summary."}
@@ -106,7 +106,7 @@ for id,p,l,d in apis: n(id,"api_route",l,d,p)
 comps=[("comp.DemoExplainer","components/DemoExplainer.tsx","Home and giving disclosure: real workflow, sandbox capture at checkout, simulated purchases/payouts/delivery and demo roles."),("comp.ElfChat","components/ElfChat.tsx","Chat UI calling /api/elf, renders product cards."),
 ("comp.Checkout","components/Checkout.tsx","PayPal button + server actions."),
 ("comp.GiftSearch","components/GiftSearch.tsx","Product search UI."),
-("comp.CharityGiftGrid","components/CharityGiftGrid.tsx","AG Grid for charity gifts, Next step column."),
+("comp.CharityGiftGrid","components/CharityGiftGrid.tsx","AG Grid for charity gifts, separate read-only Availability previews with price/store/time tooltips and Refresh availability; Next step column."),
 ("comp.ProofDialog","components/ProofDialog.tsx","Upload/review receipt."),
 ("comp.RoleSwitcher","components/RoleSwitcher.tsx","Demo role switch with ElfLoader backdrop."),
 ("comp.GiftlyCharts","components/charts/GiftlyCharts.tsx","RaisedOverTimeChart, CategoryDonut, CashVsGiftsDonut, TopCausesBar, GiftStatusBar, ChartCaption."),
@@ -142,12 +142,22 @@ dec=[("dec.cents","Store money as integer cents."),
 ("gotcha.charts-ssr","Charts render only after mount (useMounted) to avoid SSR mismatch.")]
 for id,d in dec: n(id,"decision" if id.startswith("dec") else "gotcha",id.split('.',1)[1],d)
 
+n("flow.hold","flow","Gift payment hold","Gifts are AUTHORIZED at checkout, CAPTURED when the charity clicks Buy, VOIDED if unused after 72h or released by the charity. Cash is captured at once.")
+n("lib.buy-check","module","buy-check.ts","checkBeforeBuy: same product re-check before capture; block price rises/sold-out, allow cheaper/store switch, fallback on API errors, dev simulation.","lib/buy-check.ts")
+n("lib.holds","module","holds.ts","captureHold, releaseHold, releaseExpiredHolds, sweepExpiredHolds, HOLD_HOURS=72.","lib/holds.ts")
+n("api.cron-holds","api_route","POST /api/cron/release-holds","Voids expired holds; Bearer CRON_SECRET; run by a Render Cron Job.","app/api/cron/release-holds/route.ts")
 # Status
 n("status.steps","status","Build progress","Prompt Pack Steps 0-11 implemented (as of 2026-11-10). Step 11: responsive navigation and chat cards, accessible keyboard/reduced-motion support, home and giving demo disclosures, accurate sandbox checkout copy. Remaining: Step 12 security audit, README real-vs-simulated table, AI disclosure, Devpost text, demo video.")
-n("open.money-held","open_question","Money moves only when gift arrives","Payment is captured at checkout. Step 11 public copy now states this accurately; future payment timing remains a separate decision. Options: (A) authorize at checkout, capture on Delivered; (B) platform holds funds; (C) reword copy. Deferred to the end by the user.")
+n("open.money-held","open_question","Money moves only when gift arrives","RESOLVED 2026-11-10: gifts are held (authorized) and charged when the charity buys; unused holds released after 72h. Previously: payment captured at checkout. Step 11 public copy now states this accurately; future payment timing remains a separate decision. Options: (A) authorize at checkout, capture on Delivered; (B) platform holds funds; (C) reword copy. Deferred to the end by the user.")
 n("simulated","fact","Simulated on purpose","PayPal sandbox only; charity payouts and merchant purchases simulated; charity verification illustrative; roles are a demo switcher.")
 
 # Edges
+e("lib.charity-data","uses","lib.buy-check"); e("action.charity","uses","lib.buy-check"); e("lib.buy-check","uses","lib.channel3"); e("lib.buy-check","applies_to","flow.hold")
+E.extend([{"source":"giftly","relation":"has_flow","target":"flow.hold"},{"source":"flow.hold","relation":"implemented_by","target":"lib.holds"},
+{"source":"lib.holds","relation":"uses","target":"lib.paypal"},{"source":"action.charity","relation":"uses","target":"lib.holds"},
+{"source":"api.cron-holds","relation":"uses","target":"lib.holds"},{"source":"action.give","relation":"uses","target":"lib.holds"},
+{"source":"lib.charity-data","relation":"uses","target":"lib.holds"},{"source":"lib.donor-data","relation":"uses","target":"lib.holds"},
+{"source":"open.money-held","relation":"resolved_by","target":"flow.hold"}])
 for r in ["role.public","role.donor","role.charity","role.admin"]: e("giftly","has_role",r)
 for f in ["flow.gift","flow.cash","flow.checkout","flow.proof","flow.elf","flow.transparency"]: e("giftly","has_flow",f)
 for t in ["tech.next","tech.mui","tech.aggrid","tech.agcharts","tech.prisma"]: e("giftly","built_with",t)

@@ -383,7 +383,10 @@ export default function Checkout({ charity, mode, needs, paypalClientId, draft =
         color="text.secondary"
         sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}
       >
-        <LockOutlinedIcon sx={{ fontSize: 14 }} /> PayPal sandbox: use your sandbox buyer account. No real money moves.
+        <LockOutlinedIcon sx={{ fontSize: 14 }} />
+        {mode === "cash"
+          ? "PayPal sandbox: use your sandbox buyer account. No real money moves."
+          : "PayPal only holds this amount. You're charged when the charity buys your gift; otherwise the hold is released after 72 hours. Sandbox only."}
       </Typography>
     </Box>
   );

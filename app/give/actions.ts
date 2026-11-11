@@ -1,11 +1,12 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { ItemStatus, OrderStatus, OrderType, Prisma } from "@prisma/client";
+import { ItemStatus, OrderStatus, OrderType, PaymentState, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { Channel3Error, getGiftProduct } from "@/lib/channel3";
 import { GIFT_MAX_CENTS, GivingError, decodeSpec, encodeSpec, resolveGiving, type GivingSpec } from "@/lib/giving";
-import { capturePayPalOrder, createPayPalOrder, verifyCapturedOrder } from "@/lib/paypal";
+import { authorizePayPalOrder, capturePayPalOrder, createPayPalOrder, getPayPalOrder, verifyPayPalOrder } from "@/lib/paypal";
+import { holdExpiry } from "@/lib/holds";
 
 const DONOR_COOKIE = "giftly_donor";
 
@@ -112,10 +113,13 @@ export async function startCheckout(input: StartInput): Promise<{ ok: true; payp
       }
     }
 
+    // Cash is charged at once. Gifts are only HELD: the donor is charged when the charity buys the gift,
+    // and the hold is released automatically if that doesn't happen within 72 hours.
     const paypalOrderId = await createPayPalOrder({
       amountCents: resolved.amountCents,
       customId: encodeSpec(spec),
       description: resolved.description,
+      intent: spec.kind === "cash" ? "CAPTURE" : "AUTHORIZE",
     });
     return { ok: true, paypalOrderId };
   } catch (err) {
@@ -149,8 +153,8 @@ async function getOrCreateDonor(
 }
 
 /**
- * Step 2 of checkout: capture, then VERIFY with PayPal, then save.
- * The saved amount is the verified captured amount, and it must equal what our database says.
+ * Step 2 of checkout: capture (cash) or authorize a hold (gifts), then VERIFY with PayPal, then save.
+ * The saved amount is the verified amount, and it must equal what our database says.
  */
 export async function finishCheckout(
   paypalOrderId: string,
@@ -165,24 +169,43 @@ export async function finishCheckout(
   if (existing) return { ok: true, ref: existing.id };
 
   try {
-    await capturePayPalOrder(paypalOrderId);
+    // The intent was chosen by our server in startCheckout; read it back from PayPal, not the browser.
+    const before = await getPayPalOrder(paypalOrderId);
+    if (String(before.status) !== "COMPLETED") {
+      if (String(before.intent) === "AUTHORIZE") await authorizePayPalOrder(paypalOrderId);
+      else await capturePayPalOrder(paypalOrderId);
+    }
   } catch (err) {
-    // Capture can fail if it was already captured; verification below decides.
-    console.warn("capture call failed, verifying order state", err);
+    // Can fail if it was already completed; verification below decides.
+    console.warn("capture/authorize call failed, verifying order state", err);
   }
 
   try {
-    const verified = await verifyCapturedOrder(paypalOrderId);
+    const verified = await verifyPayPalOrder(paypalOrderId);
     if (!verified) return { ok: false, error: "PayPal did not confirm this payment, so nothing was charged or saved." };
 
     const spec = decodeSpec(verified.customId);
     if (!spec) return { ok: false, error: "This payment does not belong to Giftly." };
+    // Cash must be a direct charge and gifts must be a hold. Anything else wasn't created by us.
+    if ((spec.kind === "cash") !== (verified.intent === "CAPTURE")) {
+      return { ok: false, error: "This payment does not match how Giftly set it up." };
+    }
 
     const resolved = await resolveGiving(spec);
-    if (verified.capturedCents !== resolved.amountCents) {
-      console.error("amount mismatch", { paypalOrderId, captured: verified.capturedCents, expected: resolved.amountCents });
+    if (verified.cents !== resolved.amountCents) {
+      console.error("amount mismatch", { paypalOrderId, paid: verified.cents, expected: resolved.amountCents });
       return { ok: false, error: "The paid amount did not match our records. Please contact support." };
     }
+
+    const held = verified.intent === "AUTHORIZE";
+    const payment = held
+      ? {
+          paymentState: PaymentState.AUTHORIZED,
+          authorizedCents: verified.cents,
+          paypalAuthorizationId: verified.authorizationId, // PRIVATE
+          holdExpiresAt: holdExpiry(verified.authorizationExpiresAt),
+        }
+      : { paymentState: PaymentState.CAPTURED, capturedAt: new Date() };
 
     const store = await cookies();
     const donorCookie = store.get(DONOR_COOKIE)?.value;
@@ -194,12 +217,12 @@ export async function finishCheckout(
       if (resolved.draft) {
         const updated = await tx.order.updateMany({
           where: { id: resolved.draft.orderId, status: OrderStatus.PENDING },
-          data: { donorId, paypalOrderId, status: OrderStatus.PAID, totalCents: verified.capturedCents },
+          data: { donorId, paypalOrderId, status: OrderStatus.PAID, totalCents: verified.cents, ...payment },
         });
         if (updated.count === 0) throw new GivingError("This gift was already paid for.");
         await tx.orderItem.update({
           where: { id: resolved.draft.itemId },
-          data: { status: ItemStatus.PAID, priceAtPaymentCents: verified.capturedCents },
+          data: { status: ItemStatus.PAID, priceAtPaymentCents: verified.cents },
         });
         return { id: resolved.draft.orderId, donorId };
       }
@@ -209,9 +232,10 @@ export async function finishCheckout(
           donorId,
           charityId: resolved.charityId,
           type: resolved.type === "CASH" ? OrderType.CASH : OrderType.GIFT,
-          totalCents: verified.capturedCents,
-          cashCents: resolved.type === "CASH" ? verified.capturedCents : 0,
+          totalCents: verified.cents,
+          cashCents: resolved.type === "CASH" ? verified.cents : 0,
           paypalOrderId, // PRIVATE
+          ...payment,
           status: resolved.type === "CASH" ? OrderStatus.RECEIVED : OrderStatus.PAID,
           items: resolved.need
             ? {
@@ -222,7 +246,7 @@ export async function finishCheckout(
                     merchant: "Chosen by the charity",
                     productUrl: "",
                     priceAtRecommendationCents: resolved.need.priceCents,
-                    priceAtPaymentCents: verified.capturedCents,
+                    priceAtPaymentCents: verified.cents,
                     ageRange: resolved.need.ageGroup,
                     status: ItemStatus.PAID,
                   },

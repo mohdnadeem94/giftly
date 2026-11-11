@@ -37,7 +37,7 @@ export type GiftProduct = {
   compareAtCents: number | null;
   merchant: string;
   productUrl: string;
-  inStock: boolean;
+  inStock: boolean | null;
 };
 
 function apiKey(): string {
@@ -64,8 +64,11 @@ function toCents(dollars: number | null | undefined): number | null {
   return typeof dollars === "number" && Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * 100) : null;
 }
 
-function isInStock(o: RawOffer): boolean {
-  return (o.availability ?? "").toLowerCase().replace(/[^a-z]/g, "") === "instock";
+function isInStock(o: RawOffer): boolean | null {
+  const availability = (o.availability ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  if (availability === "instock") return true;
+  if (["outofstock", "soldout", "unavailable"].includes(availability)) return false;
+  return null;
 }
 
 /** Turn a raw Channel3 product into a GiftProduct, or null if it's unsafe, not in USD, or over budget. */
@@ -80,7 +83,8 @@ export function normalizeProduct(p: RawProduct, maxCents?: number): GiftProduct 
     .filter((o) => o?.url && (o.price?.currency ?? "USD").toUpperCase() === "USD" && toCents(o.price?.price) !== null)
     .filter((o) => !maxCents || (toCents(o.price?.price) as number) <= maxCents)
     .sort((a, b) => {
-      const stock = Number(isInStock(b)) - Number(isInStock(a)); // in stock first
+      const rank = (o: RawOffer) => isInStock(o) === true ? 2 : isInStock(o) === null ? 1 : 0;
+      const stock = rank(b) - rank(a); // in stock first
       return stock !== 0 ? stock : (toCents(a.price?.price) as number) - (toCents(b.price?.price) as number);
     });
   const best = offers[0];

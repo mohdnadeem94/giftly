@@ -1,8 +1,10 @@
 // Aggregates for public charts (server only). Totals only: no donor names, emails or PayPal IDs.
-import { OrderStatus, OrderType } from "@prisma/client";
+import { OrderStatus, OrderType, PaymentState } from "@prisma/client";
 import { db } from "@/lib/db";
 
 const COUNTED = [OrderStatus.RECEIVED, OrderStatus.PAID];
+// Only money that was actually charged counts as raised. Gift payments on hold (not yet bought) don't.
+const COUNTED_WHERE = { status: { in: COUNTED }, paymentState: PaymentState.CAPTURED };
 
 export type ChartData = {
   scope: { slug: string; name: string } | null; // null = all causes
@@ -27,7 +29,7 @@ export async function getChartData(causeSlug?: string | null): Promise<ChartData
   }
 
   const orders = await db.order.findMany({
-    where: { status: { in: COUNTED }, ...(charityId ? { charityId } : {}) },
+    where: { ...COUNTED_WHERE, ...(charityId ? { charityId } : {}) },
     orderBy: { createdAt: "asc" },
     select: {
       type: true,
@@ -112,7 +114,7 @@ export async function getChartData(causeSlug?: string | null): Promise<ChartData
 /** Recent public donations across all causes (safe fields only). */
 export async function getPublicFeed(limit = 100) {
   const rows = await db.order.findMany({
-    where: { status: { in: COUNTED } },
+    where: { ...COUNTED_WHERE },
     orderBy: { createdAt: "desc" },
     take: limit,
     select: {
