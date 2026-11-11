@@ -2,6 +2,7 @@
 import { ItemStatus, OrderStatus, OrderType } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getDemoSession } from "@/lib/session";
+import { proofAllowsDelivery } from "@/lib/proof-check";
 
 export type CharityGiftRow = {
   id: string; // OrderItem id
@@ -13,7 +14,11 @@ export type CharityGiftRow = {
   priceCents: number;
   status: "PAID" | "BOUGHT" | "DELIVERED";
   donor: string; // display name, "Anonymous" or "Guest" (never an email)
-  proof: string | null; // latest proof result (Step 8)
+  proof: string | null; // latest proof status: MATCH | MISMATCH | UNCLEAR | APPROVED | REJECTED | UPLOADED
+  proofId: string | null;
+  proofNotes: string | null; // AI's short note about the receipt
+  proofAiResult: string | null;
+  canDeliver: boolean; // a matching or admin-approved receipt exists
   orderedAt: string;
   updatedAt: string;
 };
@@ -47,7 +52,7 @@ export const giftRowSelect = {
   createdAt: true,
   updatedAt: true,
   order: { select: { donor: { select: { displayName: true, anonymous: true } } } },
-  proofs: { orderBy: { createdAt: "desc" as const }, take: 1, select: { aiResult: true, adminDecision: true } },
+  proofs: { orderBy: { createdAt: "desc" as const }, take: 1, select: { id: true, aiResult: true, aiNotes: true, adminDecision: true } },
 };
 
 type GiftRowRecord = {
@@ -63,7 +68,7 @@ type GiftRowRecord = {
   createdAt: Date;
   updatedAt: Date;
   order: { donor: { displayName: string; anonymous: boolean } | null };
-  proofs: { aiResult: string | null; adminDecision: string | null }[];
+  proofs: { id: string; aiResult: string | null; aiNotes: string | null; adminDecision: string | null }[];
 };
 
 export function toGiftRow(r: GiftRowRecord): CharityGiftRow {
@@ -80,6 +85,10 @@ export function toGiftRow(r: GiftRowRecord): CharityGiftRow {
     status: r.status as CharityGiftRow["status"],
     donor: !donor ? "Guest" : donor.anonymous ? "Anonymous" : donor.displayName,
     proof: proof ? (proof.adminDecision ?? proof.aiResult ?? "UPLOADED") : null,
+    proofId: proof?.id ?? null,
+    proofNotes: proof?.aiNotes ?? null,
+    proofAiResult: proof?.aiResult ?? null,
+    canDeliver: proofAllowsDelivery(proof),
     orderedAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };

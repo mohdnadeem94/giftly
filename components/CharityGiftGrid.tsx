@@ -23,6 +23,9 @@ import Typography from "@mui/material/Typography";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import ShoppingBagRoundedIcon from "@mui/icons-material/ShoppingBagRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
+import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
+import ProofDialog from "@/components/ProofDialog";
 import { updateGiftStatus } from "@/app/charity/actions";
 import { gridTheme } from "@/components/grid/agSetup";
 import type { CharityGiftRow } from "@/lib/charity-data";
@@ -107,7 +110,42 @@ function ProofCell(p: CustomCellRendererProps<GridRow>) {
   );
 }
 
-export default function CharityGiftGrid({ initialRows, charityName, charitySlug }: { initialRows: CharityGiftRow[]; charityName: string; charitySlug: string }) {
+type GridContext = { openProof: (row: CharityGiftRow) => void; markBought: (row: CharityGiftRow) => void };
+
+function ActionCell(p: CustomCellRendererProps<GridRow, unknown, GridContext>) {
+  const row = p.data;
+  if (!row || isTotal(row)) return null;
+  const ctx = p.context;
+  const sx = { textTransform: "none", fontWeight: 700, borderRadius: 999, py: 0.25, px: 1.25, minWidth: 0, fontSize: 12.5 } as const;
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+      {row.status === "PAID" && (
+        <Button size="small" variant="outlined" sx={sx} startIcon={<ShoppingBagRoundedIcon sx={{ fontSize: 16 }} />} onClick={() => ctx.markBought(row)}>
+          Mark Bought
+        </Button>
+      )}
+      {row.status === "BOUGHT" && (
+        <Button
+          size="small"
+          variant={row.canDeliver ? "contained" : "outlined"}
+          color={row.canDeliver ? "primary" : row.proof === "MISMATCH" || row.proof === "REJECTED" ? "error" : "primary"}
+          sx={sx}
+          startIcon={row.canDeliver ? <LocalShippingRoundedIcon sx={{ fontSize: 16 }} /> : <ReceiptLongRoundedIcon sx={{ fontSize: 16 }} />}
+          onClick={() => ctx.openProof(row)}
+        >
+          {row.canDeliver ? "Deliver" : row.proofId ? "Review receipt" : "Add receipt"}
+        </Button>
+      )}
+      {row.status === "DELIVERED" && (
+        <Button size="small" variant="text" color="inherit" sx={{ ...sx, color: "#166534" }} onClick={() => ctx.openProof(row)}>
+          ✓ Delivered
+        </Button>
+      )}
+    </Box>
+  );
+}
+
+export default function CharityGiftGrid({ initialRows, charityName, charitySlug, isAdmin = false }: { initialRows: CharityGiftRow[]; charityName: string; charitySlug: string; isAdmin?: boolean }) {
   const apiRef = useRef<GridApi<GridRow> | null>(null);
   const filterRef = useRef<StatusFilter>("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
@@ -116,6 +154,7 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug 
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ severity: "success" | "error" | "info"; text: string } | null>(null);
   const [counts, setCounts] = useState(() => countByStatus(initialRows));
+  const [dialogRow, setDialogRow] = useState<CharityGiftRow | null>(null);
 
   function countByStatus(rows: CharityGiftRow[]) {
     const c = { ALL: rows.length, PAID: 0, BOUGHT: 0, DELIVERED: 0 };
@@ -179,8 +218,9 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug 
           return n ? `Double-click to mark ${STATUS_LABEL[n]}` : undefined;
         },
       },
+      { colId: "next", headerName: "Next step", width: 165, cellRenderer: ActionCell, sortable: false, filter: false },
       { field: "donor" as never, headerName: "Donor", flex: 1, minWidth: 130 },
-      { field: "proof" as never, headerName: "Proof", width: 120, cellRenderer: ProofCell },
+      { field: "proof" as never, headerName: "Receipt", width: 120, cellRenderer: ProofCell, onCellClicked: (e) => { if (e.data && !isTotal(e.data)) setDialogRow(e.data); } },
       {
         field: "updatedAt" as never,
         headerName: "Last updated",
@@ -247,6 +287,21 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug 
       text: `${res.rows.length} gift${res.rows.length === 1 ? "" : "s"} marked Bought${res.skipped ? ` (${res.skipped} skipped)` : ""}.`,
     });
   }
+
+  async function markOneBought(row: CharityGiftRow) {
+    setBusy(true);
+    const res = await updateGiftStatus([row.id], "BOUGHT");
+    setBusy(false);
+    if (!res.ok) return setToast({ severity: "error", text: res.error });
+    applyUpdates(res.rows);
+    setToast({ severity: "success", text: `“${row.productTitle.slice(0, 40)}” marked Bought. Next: upload its receipt.` });
+  }
+
+  const gridContext = useMemo<GridContext>(
+    () => ({ openProof: (row) => setDialogRow(row), markBought: (row) => void markOneBought(row) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   function chooseStatus(s: StatusFilter) {
     filterRef.current = s;
@@ -337,15 +392,26 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug 
             onFilterChanged={refreshTotals}
             onSelectionChanged={(e: SelectionChangedEvent<GridRow>) => setSelectedCount(e.api.getSelectedRows().length)}
             onCellValueChanged={onCellValueChanged}
+            context={gridContext}
             getRowStyle={(p) => (p.node.rowPinned ? { background: "#faf7f2", fontWeight: 700 } : undefined)}
           />
         </Box>
       )}
 
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
-        Double-click a status to move a gift one step forward: Paid → Bought → Delivered. Status changes are checked on the
-        server. The CSV contains only {charityName}&apos;s records.
+        Use “Next step” to move each gift forward: Paid → Bought → (receipt checked) → Delivered. Every change is checked on the
+        server, and Delivered needs a matching or admin-approved receipt. The CSV contains only {charityName}&apos;s records.
       </Typography>
+
+      <ProofDialog
+        row={dialogRow}
+        isAdmin={isAdmin}
+        onClose={() => setDialogRow(null)}
+        onUpdated={(row, message) => {
+          applyUpdates([row]);
+          setToast({ severity: "success", text: message });
+        }}
+      />
 
       <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
         {toast ? (

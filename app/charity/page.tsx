@@ -66,7 +66,7 @@ export default async function CharityDashboardPage() {
       </Box>
 
       <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2.5 }, border: "1px solid", borderColor: "divider" }}>
-        <CharityGiftGrid initialRows={rows} charityName={charity.name} charitySlug={charity.slug} />
+        <CharityGiftGrid initialRows={rows} charityName={charity.name} charitySlug={charity.slug} isAdmin={charity.role === "admin"} />
       </Paper>
 
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>

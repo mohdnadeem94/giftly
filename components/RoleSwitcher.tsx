@@ -29,7 +29,7 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
 
   function chooseRole(next: Role) {
     setCookie(ROLE_COOKIE, next);
-    if (next === "charity" && currentCharity) setCookie(CHARITY_COOKIE, currentCharity);
+    if ((next === "charity" || next === "admin") && currentCharity) setCookie(CHARITY_COOKIE, currentCharity);
     refresh();
   }
 
@@ -76,7 +76,7 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
           </ToggleButton>
         ))}
       </ToggleButtonGroup>
-      {role === "charity" && charities.length > 0 && (
+      {(role === "charity" || role === "admin") && charities.length > 0 && (
         <Select
           size="small"
           value={currentCharity}
