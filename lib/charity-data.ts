@@ -97,21 +97,19 @@ export async function getCharityGifts(charityId: string): Promise<CharityGiftRow
   return rows.map(toGiftRow);
 }
 
+/** Cash received (cash donations plus the cash part of gift+cash orders). Gift totals come from the gift rows. */
 export async function getCharitySummary(charityId: string) {
-  const [cash, gifts] = await Promise.all([
+  const [cash, cashOnly] = await Promise.all([
     db.order.aggregate({
-      where: { charityId, type: OrderType.CASH, status: OrderStatus.RECEIVED },
-      _sum: { totalCents: true },
+      where: { charityId, status: { in: [OrderStatus.RECEIVED, OrderStatus.PAID] }, cashCents: { gt: 0 } },
+      _sum: { cashCents: true },
       _count: true,
     }),
-    db.order.aggregate({
-      where: { charityId, type: { in: [OrderType.GIFT, OrderType.HYBRID] }, status: OrderStatus.PAID },
-      _sum: { totalCents: true },
-    }),
+    db.order.count({ where: { charityId, type: OrderType.CASH, status: OrderStatus.RECEIVED } }),
   ]);
   return {
-    cashCents: cash._sum.totalCents ?? 0,
+    cashCents: cash._sum.cashCents ?? 0,
     cashCount: cash._count,
-    giftCents: gifts._sum.totalCents ?? 0,
+    cashOnlyCount: cashOnly,
   };
 }

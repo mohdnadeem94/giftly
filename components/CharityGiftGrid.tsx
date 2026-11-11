@@ -3,9 +3,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AgGridReact, type CustomCellRendererProps } from "ag-grid-react";
 import {
-  AllCommunityModule,
-  ModuleRegistry,
-  themeQuartz,
   type CellValueChangedEvent,
   type ColDef,
   type GetRowIdParams,
@@ -27,20 +24,9 @@ import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import ShoppingBagRoundedIcon from "@mui/icons-material/ShoppingBagRounded";
 import { updateGiftStatus } from "@/app/charity/actions";
+import { gridTheme } from "@/components/grid/agSetup";
 import type { CharityGiftRow } from "@/lib/charity-data";
 import { STATUS_LABEL, STATUS_STYLE, nextStatus } from "@/lib/gift-status";
-
-ModuleRegistry.registerModules([AllCommunityModule]);
-
-const gridTheme = themeQuartz.withParams({
-  accentColor: "#166534",
-  fontFamily: "inherit",
-  headerFontWeight: 700,
-  headerBackgroundColor: "#faf7f2",
-  borderRadius: 10,
-  wrapperBorderRadius: 16,
-  fontSize: 14,
-});
 
 type StatusFilter = "ALL" | "PAID" | "BOUGHT" | "DELIVERED";
 type TotalRow = { id: string; productTitle: string; priceCents: number; isTotal: true };

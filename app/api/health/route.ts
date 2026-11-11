@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { configuredModels } from "@/lib/llm";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function GET() {
   const env = Object.fromEntries(keys.map((k) => [k, Boolean(process.env[k])]));
   const llm = {
     provider: (process.env.LLM_BASE_URL || "gemini").includes("groq") ? "groq" : process.env.LLM_BASE_URL ? "custom" : "gemini",
-    model: process.env.LLM_MODEL || "gemini-3.8-flash",
+    models: configuredModels(),
   };
 
   return NextResponse.json({ status: "ok", time: new Date().toISOString(), env, llm });

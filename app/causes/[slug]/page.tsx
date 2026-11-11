@@ -8,12 +8,6 @@ import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
 import Container from "@mui/material/Container";
 import Divider from "@mui/material/Divider";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import CardGiftcardRoundedIcon from "@mui/icons-material/CardGiftcardRounded";
@@ -23,11 +17,12 @@ import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
 import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
 import ElfChat from "@/components/ElfChat";
+import DonationsGrid from "@/components/grid/DonationsGrid";
 import ProgressBar from "@/components/ProgressBar";
 import LinkButton from "@/components/ui/LinkButton";
 import StatusChip from "@/components/ui/StatusChip";
 import { getCause } from "@/lib/public-data";
-import { label, money, shortDate } from "@/lib/format";
+import { money } from "@/lib/format";
 
 function parseFaq(text: string): { q: string; a: string }[] {
   return text
@@ -71,12 +66,12 @@ export default async function CausePage({ params }: { params: Promise<{ slug: st
             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
               <Chip label={cause.category} size="small" sx={{ bgcolor: "#f5f0e8" }} />
               {cause.verifiedDemo && (
-                <Chip
-                  icon={<VerifiedRoundedIcon sx={{ color: "#166534 !important" }} />}
-                  label="Verified (demo)"
-                  size="small"
-                  sx={{ bgcolor: "#dcfce7", color: "#166534" }}
-                />
+                <Box
+                  component="span"
+                  sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, px: 1.25, height: 24, borderRadius: 999, bgcolor: "#dcfce7", color: "#166534", fontWeight: 600, fontSize: "0.8125rem" }}
+                >
+                  <VerifiedRoundedIcon sx={{ fontSize: 16 }} /> Verified (demo)
+                </Box>
               )}
             </Box>
             <Typography variant="h3" sx={{ fontSize: { xs: "2rem", md: "2.6rem" }, mb: 1 }}>
@@ -171,38 +166,11 @@ export default async function CausePage({ params }: { params: Promise<{ slug: st
           </Card>
 
           <Card>
-            <CardContent sx={{ p: 3, pb: "8px !important" }}>
+            <CardContent sx={{ p: 3, pb: "24px !important" }}>
               <Typography variant="h6" sx={{ mb: 1 }}>
                 Recent donations
               </Typography>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Donor</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell align="right">Amount</TableCell>
-                      <TableCell>Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {cause.feed.map((f, i) => (
-                      <TableRow key={i} sx={{ "&:last-child td": { border: 0 } }}>
-                        <TableCell>{shortDate(f.date)}</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{f.displayName}</TableCell>
-                        <TableCell>{label(f.type)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>
-                          {money(f.amountCents)}
-                        </TableCell>
-                        <TableCell>
-                          <StatusChip status={f.status} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <DonationsGrid rows={cause.feed} />
             </CardContent>
           </Card>
         </Box>

@@ -133,7 +133,7 @@ export async function getCause(slug: string): Promise<PublicCauseDetail | null> 
     db.order.findMany({
       where: { charityId: c.id, status: { in: COUNTED } },
       orderBy: { createdAt: "desc" },
-      take: 15,
+      take: 100,
       select: {
         createdAt: true,
         type: true,
