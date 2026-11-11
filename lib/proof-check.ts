@@ -69,8 +69,11 @@ export async function checkReceipt(opts: {
   }
 
   // Belt and braces: a "match" with a clearly different price is downgraded.
-  const found = Number(data.found_price_usd);
+  const found = typeof data.found_price_usd === "number" ? data.found_price_usd : NaN;
   let verdict = result as ProofVerdict["result"];
+  if (verdict === "MATCH" && (!Number.isFinite(found) || found <= 0 || typeof data.found_title !== "string" || !data.found_title.trim())) {
+    verdict = "UNCLEAR";
+  }
   if (verdict === "MATCH" && Number.isFinite(found) && Math.abs(found * 100 - opts.expected.priceCents) > 100) {
     verdict = "MISMATCH";
   }

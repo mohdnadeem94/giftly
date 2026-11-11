@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     const released = await releaseExpiredHolds(100);
     return NextResponse.json({ ok: true, released, holdHours: HOLD_HOURS });
   } catch (err) {
-    console.error("release-holds cron failed", err);
+    console.error("release-holds cron failed");
     return NextResponse.json({ error: "Could not release holds" }, { status: 500 });
   }
 }

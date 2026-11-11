@@ -34,8 +34,9 @@ export function centsToValue(cents: number): string {
 }
 
 export function valueToCents(value: string | undefined | null): number {
-  if (!value) return NaN;
-  return Math.round(Number.parseFloat(value) * 100);
+  if (!value || !/^\d+(?:\.\d{1,2})?$/.test(value)) return NaN;
+  const cents = Math.round(Number(value) * 100);
+  return Number.isSafeInteger(cents) && cents > 0 ? cents : NaN;
 }
 
 export type PaymentIntent = "CAPTURE" | "AUTHORIZE";
@@ -93,7 +94,8 @@ export async function verifyPayPalOrder(id: string): Promise<VerifiedPayment | n
   const order = await getPayPalOrder(id);
   if (String(order.status) !== "COMPLETED") return null;
 
-  const unit = order.purchaseUnits?.[0];
+  if (order.purchaseUnits?.length !== 1 || !["AUTHORIZE", "CAPTURE"].includes(String(order.intent))) return null;
+  const unit = order.purchaseUnits[0];
   if (!unit?.customId) return null;
   const intent: PaymentIntent = String(order.intent) === "AUTHORIZE" ? "AUTHORIZE" : "CAPTURE";
 
@@ -102,7 +104,7 @@ export async function verifyPayPalOrder(id: string): Promise<VerifiedPayment | n
     if (!auth?.id || String(auth.status) !== "CREATED") return null;
     if (auth.amount?.currencyCode !== "USD") return null;
     const cents = valueToCents(auth.amount?.value);
-    if (!Number.isFinite(cents)) return null;
+    if (!Number.isFinite(cents) || !auth.expirationTime || !Number.isFinite(Date.parse(auth.expirationTime)) || Date.parse(auth.expirationTime) <= Date.now()) return null;
     return {
       intent,
       customId: unit.customId,
@@ -138,16 +140,12 @@ export async function captureAuthorization(authorizationId: string, amountCents:
     prefer: "return=representation", // full response, including the captured amount
     body: { amount: { currencyCode: "USD", value: centsToValue(amountCents) }, finalCapture: true },
   });
-  let status = String(result.status ?? "");
-  let cents = valueToCents(result.amount?.value);
-  // A minimal response (or an idempotent replay) can omit the amount: read the capture back from PayPal.
-  if (!Number.isFinite(cents) && result.id) {
-    const { result: capture } = await payments().getCapturedPayment({ captureId: result.id });
-    status = String(capture.status ?? status);
-    cents = valueToCents(capture.amount?.value);
-  }
-  // PENDING means PayPal accepted the capture but is still settling it (e.g. under review).
-  return { ok: (status === "COMPLETED" || status === "PENDING") && cents === amountCents, cents, status };
+  // Always verify the capture resource, including a pending or idempotent replay response.
+  if (!result.id) return { ok: false, cents: NaN, status: "UNKNOWN" };
+  const { result: capture } = await payments().getCapturedPayment({ captureId: result.id });
+  const status = String(capture.status ?? "");
+  const cents = valueToCents(capture.amount?.value);
+  return { ok: status === "COMPLETED" && capture.amount?.currencyCode === "USD" && cents === amountCents, cents, status };
 }
 
 /** Release a hold so the donor is never charged. Safe to call twice. */
@@ -159,7 +157,7 @@ export async function voidAuthorization(authorizationId: string): Promise<boolea
     // Already voided or expired counts as released. Anything else is a real failure.
     const status = await getAuthorizationStatus(authorizationId).catch(() => null);
     if (status === "VOIDED" || status === "EXPIRED") return true;
-    console.error("PayPal void failed", { status, err });
+    console.error("PayPal void failed", { status });
     return false;
   }
 }

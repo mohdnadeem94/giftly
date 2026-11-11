@@ -9,7 +9,7 @@ import { ItemStatus, OrderStatus, PaymentState } from "@prisma/client";
 import { db } from "@/lib/db";
 import { captureAuthorization, voidAuthorization } from "@/lib/paypal";
 
-const configured = Number(process.env.GIFT_HOLD_HOURS);
+const configured = process.env.NODE_ENV === "production" ? 72 : Number(process.env.GIFT_HOLD_HOURS);
 /** How long a gift payment stays on hold before it is released automatically. */
 export const HOLD_HOURS = Number.isFinite(configured) && configured > 0 && configured <= 72 ? configured : 72;
 export const HOLD_MS = HOLD_HOURS * 60 * 60 * 1000;
@@ -27,27 +27,29 @@ export function holdExpiry(paypalExpiresAt: Date | null, now = new Date()): Date
  * the charity's list. Only acts on orders that are still held.
  */
 export async function releaseHold(orderId: string, reason: "EXPIRED" | "CHARITY_RELEASED"): Promise<boolean> {
-  const order = await db.order.findUnique({
-    where: { id: orderId },
-    select: { id: true, paymentState: true, paypalAuthorizationId: true },
-  });
-  if (!order || order.paymentState !== PaymentState.AUTHORIZED) return false;
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, paymentState: true, paypalAuthorizationId: true },
+    });
+    if (!order || order.paymentState !== PaymentState.AUTHORIZED) return false;
 
-  if (order.paypalAuthorizationId) {
+    if (!order.paypalAuthorizationId) return false;
     const voided = await voidAuthorization(order.paypalAuthorizationId);
     if (!voided) return false; // keep it held; the next sweep tries again
-  }
 
-  const now = new Date();
-  const updated = await db.order.updateMany({
-    where: { id: order.id, paymentState: PaymentState.AUTHORIZED },
-    data: { paymentState: PaymentState.VOIDED, status: OrderStatus.CANCELLED, voidedAt: now },
-  });
-  if (updated.count > 0) {
-    await db.orderItem.updateMany({ where: { orderId: order.id, status: ItemStatus.PAID }, data: { status: ItemStatus.PENDING } });
-    console.info("gift hold released", { orderId: order.id, reason });
-  }
-  return updated.count > 0;
+    const now = new Date();
+    const updated = await tx.order.updateMany({
+      where: { id: order.id, paymentState: PaymentState.AUTHORIZED },
+      data: { paymentState: PaymentState.VOIDED, status: OrderStatus.CANCELLED, voidedAt: now },
+    });
+    if (updated.count > 0) {
+      await tx.orderItem.updateMany({ where: { orderId: order.id, status: ItemStatus.PAID }, data: { status: ItemStatus.PENDING } });
+      console.info("gift hold released", { orderId: order.id, reason });
+    }
+    return updated.count > 0;
+  }, { timeout: 60000 });
 }
 
 /**
@@ -55,37 +57,37 @@ export async function releaseHold(orderId: string, reason: "EXPIRED" | "CHARITY_
  * Throws HoldError with a friendly message if it can't be charged.
  */
 export async function captureHold(orderId: string, amountCents?: number): Promise<void> {
-  const order = await db.order.findUnique({
-    where: { id: orderId },
-    select: { id: true, totalCents: true, paymentState: true, paypalAuthorizationId: true, holdExpiresAt: true, authorizedCents: true },
-  });
-  if (!order) throw new HoldError("Order not found.");
-  if (order.paymentState === PaymentState.CAPTURED) return; // already charged (e.g. seeded or a retry)
-  if (order.paymentState !== PaymentState.AUTHORIZED || !order.paypalAuthorizationId) {
-    throw new HoldError("This gift's payment hold was already released.");
-  }
-  if (order.holdExpiresAt && order.holdExpiresAt <= new Date()) {
-    await releaseHold(order.id, "EXPIRED");
-    throw new HoldError(`The ${HOLD_HOURS}-hour hold on this gift ended, so it was released and the donor wasn't charged.`);
-  }
-
-  const cents = amountCents ?? order.totalCents;
-  if (!Number.isSafeInteger(cents) || cents <= 0 || cents > order.totalCents) {
-    throw new HoldError("The charge must be positive and cannot exceed the donor's held amount.");
-  }
-  let result: Awaited<ReturnType<typeof captureAuthorization>>;
-  try {
-    result = await captureAuthorization(order.paypalAuthorizationId, cents);
-  } catch (err) {
-    console.error("capture of held gift failed", { orderId, err });
-    throw new HoldError("PayPal couldn't charge the held payment. Please try again in a moment.");
-  }
-  if (!result.ok) {
-    console.error("capture mismatch", { orderId, status: result.status, cents: result.cents, expected: cents });
-    throw new HoldError("PayPal didn't confirm the charge for this gift.");
-  }
-
   await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, totalCents: true, paymentState: true, paypalAuthorizationId: true, holdExpiresAt: true, authorizedCents: true },
+    });
+    if (!order) throw new HoldError("Order not found.");
+    if (order.paymentState === PaymentState.CAPTURED) return; // already charged (e.g. seeded or a retry)
+    if (order.paymentState !== PaymentState.AUTHORIZED || !order.paypalAuthorizationId) {
+      throw new HoldError("This gift's payment hold was already released.");
+    }
+    if (!order.holdExpiresAt || order.holdExpiresAt <= new Date()) {
+      throw new HoldError(`This gift's payment hold has expired or has no valid expiry. No new charge was made; expired holds are released automatically.`);
+    }
+
+    const cents = amountCents ?? order.totalCents;
+    if (!Number.isSafeInteger(cents) || cents <= 0 || cents > Math.min(order.totalCents, order.authorizedCents ?? order.totalCents)) {
+      throw new HoldError("The charge must be positive and cannot exceed the donor's held amount.");
+    }
+    let result: Awaited<ReturnType<typeof captureAuthorization>>;
+    try {
+      result = await captureAuthorization(order.paypalAuthorizationId, cents);
+    } catch (err) {
+      console.error("capture of held gift failed", { orderId });
+      throw new HoldError("PayPal couldn't charge the held payment. Please try again in a moment.");
+    }
+    if (!result.ok) {
+      console.error("capture mismatch", { orderId, status: result.status, cents: result.cents, expected: cents });
+      throw new HoldError("PayPal didn't confirm the charge for this gift.");
+    }
+
     const updated = await tx.order.updateMany({
       where: { id: order.id, paymentState: PaymentState.AUTHORIZED },
       data: { paymentState: PaymentState.CAPTURED, capturedAt: new Date(), totalCents: cents,
@@ -94,7 +96,7 @@ export async function captureHold(orderId: string, amountCents?: number): Promis
     if (updated.count) await tx.orderItem.updateMany({
       where: { orderId: order.id }, data: { priceAtPaymentCents: cents },
     });
-  });
+  }, { timeout: 60000 });
 }
 
 /** Release every hold that is past its 72-hour limit. Returns how many were released. */
@@ -120,6 +122,6 @@ export async function sweepExpiredHolds(): Promise<void> {
   try {
     await releaseExpiredHolds();
   } catch (err) {
-    console.error("hold sweep failed", err);
+    console.error("hold sweep failed");
   }
 }

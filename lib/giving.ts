@@ -12,7 +12,7 @@ export class GivingError extends Error {}
 
 /** A compact description of what is being paid for. Stored in the PayPal order's custom_id. */
 export type GivingSpec =
-  | { kind: "cash"; charityId: string; cents: number }
+  | { kind: "cash"; charityId: string; cents: number; orderId?: string }
   | { kind: "need"; needId: string }
   | { kind: "item"; orderItemId: string }; // a product draft created from Channel3 search
 
@@ -35,6 +35,7 @@ export type ResolvedGiving = {
 };
 
 export function encodeSpec(spec: GivingSpec): string {
+  if (spec.kind === "cash" && spec.orderId) return `giftly:cashdraft:${spec.orderId}`;
   if (spec.kind === "cash") return `giftly:cash:${spec.charityId}:${spec.cents}`;
   if (spec.kind === "need") return `giftly:need:${spec.needId}`;
   return `giftly:item:${spec.orderItemId}`;
@@ -43,6 +44,7 @@ export function encodeSpec(spec: GivingSpec): string {
 export function decodeSpec(customId: string): GivingSpec | null {
   const parts = customId.split(":");
   if (parts[0] !== "giftly") return null;
+  if (parts[1] === "cashdraft" && parts.length === 3 && parts[2]) return { kind: "cash", charityId: "", cents: 0, orderId: parts[2] };
   if (parts[1] === "cash" && parts.length === 4) {
     const cents = Number(parts[3]);
     return Number.isInteger(cents) ? { kind: "cash", charityId: parts[2], cents } : null;
@@ -54,6 +56,13 @@ export function decodeSpec(customId: string): GivingSpec | null {
 
 export async function resolveGiving(spec: GivingSpec): Promise<ResolvedGiving> {
   if (spec.kind === "cash") {
+    if (spec.orderId) {
+      const draft = await db.order.findUnique({ where: { id: spec.orderId }, select: {
+        totalCents: true, type: true, status: true, charityId: true,
+      } });
+      if (!draft || draft.type !== "CASH" || draft.status !== "PENDING") throw new GivingError("This cash checkout is no longer available.");
+      spec = { ...spec, charityId: draft.charityId, cents: draft.totalCents };
+    }
     if (!Number.isInteger(spec.cents) || spec.cents < CASH_MIN_CENTS || spec.cents > CASH_MAX_CENTS) {
       throw new GivingError("Please choose an amount between $1 and $500.");
     }

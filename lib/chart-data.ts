@@ -1,5 +1,6 @@
 // Aggregates for public charts (server only). Totals only: no donor names, emails or PayPal IDs.
 import { OrderStatus, OrderType, PaymentState } from "@prisma/client";
+import { publicDonorLabel } from "@/lib/donor-label";
 import { db } from "@/lib/db";
 
 const COUNTED = [OrderStatus.RECEIVED, OrderStatus.PAID];
@@ -129,7 +130,7 @@ export async function getPublicFeed(limit = 100) {
   });
   return rows.map((o) => ({
     date: o.createdAt.toISOString(),
-    displayName: !o.donor ? "Guest" : o.donor.anonymous ? "Anonymous" : o.donor.displayName,
+    displayName: publicDonorLabel(o.donor),
     type: o.type,
     amountCents: o.totalCents,
     status: o.type === OrderType.CASH ? o.status : (o.items[0]?.status ?? o.status),

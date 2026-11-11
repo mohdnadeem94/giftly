@@ -10,5 +10,5 @@ export default async function TopBar() {
   } catch {
     // Database unavailable: keep the header usable.
   }
-  return <AppHeader role={session.role} charitySlug={session.charitySlug} charities={charities} />;
+  return <AppHeader role={session.role} charitySlug={session.charitySlug} charities={charities} donorName={session.donorName} />;
 }

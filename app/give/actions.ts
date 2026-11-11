@@ -4,9 +4,13 @@ import { cookies } from "next/headers";
 import { ItemStatus, OrderStatus, OrderType, PaymentState, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { Channel3Error, getGiftProduct } from "@/lib/channel3";
-import { GIFT_MAX_CENTS, GivingError, decodeSpec, encodeSpec, resolveGiving, type GivingSpec } from "@/lib/giving";
+import { CASH_MIN_CENTS, CASH_MAX_CENTS, GIFT_MAX_CENTS, GivingError, decodeSpec, encodeSpec, resolveGiving, type GivingSpec } from "@/lib/giving";
 import { authorizePayPalOrder, capturePayPalOrder, createPayPalOrder, getPayPalOrder, verifyPayPalOrder } from "@/lib/paypal";
 import { holdExpiry } from "@/lib/holds";
+import { canGive } from "@/lib/roles";
+import { getDemoSession } from "@/lib/session";
+
+const SIGN_IN_ERROR = "Please sign in as a donor to give.";
 
 const DONOR_COOKIE = "giftly_donor";
 
@@ -31,12 +35,13 @@ export async function createGiftDraft(input: {
   productId: string;
   ageRange?: string;
 }): Promise<{ ok: true; orderItemId: string } | Fail> {
+  if (!canGive((await getDemoSession()).role)) return { ok: false, error: SIGN_IN_ERROR };
   try {
     const charity = await db.charity.findUnique({ where: { slug: String(input.charitySlug) }, select: { id: true } });
     if (!charity) return { ok: false, error: "That charity could not be found." };
 
     const product = await getGiftProduct(String(input.productId));
-    if (!product) return { ok: false, error: "That product is no longer available. Please pick another.", code: "UNAVAILABLE" };
+    if (!product || product.inStock === false) return { ok: false, error: "That product is no longer available. Please pick another.", code: "UNAVAILABLE" };
     if (product.priceCents > GIFT_MAX_CENTS) return { ok: false, error: "Gifts are limited to $500 in this demo." };
 
     const ageRange = typeof input.ageRange === "string" ? input.ageRange.slice(0, 20) : null;
@@ -66,7 +71,7 @@ export async function createGiftDraft(input: {
     });
     return { ok: true, orderItemId: order.items[0].id };
   } catch (err) {
-    console.error("createGiftDraft failed", err);
+    console.error("createGiftDraft failed");
     if (err instanceof Channel3Error && err.status === 503) return { ok: false, error: "Product search isn't configured yet." };
     return { ok: false, error: "We couldn't save that gift. Please try again." };
   }
@@ -74,16 +79,24 @@ export async function createGiftDraft(input: {
 
 /**
  * Step 1 of checkout: build the PayPal order on the server.
- * For cash and wishlist gifts nothing is saved yet, so a cancelled payment leaves no record.
+ * Cash proposals are saved as pending drafts before their database amount is sent to PayPal.
  */
 export async function startCheckout(input: StartInput): Promise<{ ok: true; paypalOrderId: string } | Fail> {
+  if (!canGive((await getDemoSession()).role)) return { ok: false, error: SIGN_IN_ERROR };
   try {
     const charity = await db.charity.findUnique({ where: { slug: input.charitySlug }, select: { id: true } });
     if (!charity) return { ok: false, error: "That charity could not be found." };
 
     let spec: GivingSpec;
     if (input.mode === "cash") {
-      spec = { kind: "cash", charityId: charity.id, cents: Math.round(Number(input.cashCents)) };
+      const cents = input.cashCents;
+      if (!Number.isSafeInteger(cents) || cents < CASH_MIN_CENTS || cents > CASH_MAX_CENTS) {
+        return { ok: false, error: "Please choose a whole-cent amount between $1 and $500." };
+      }
+      const draft = await db.order.create({ data: {
+        charityId: charity.id, type: OrderType.CASH, status: OrderStatus.PENDING, totalCents: cents, cashCents: cents,
+      }, select: { id: true } });
+      spec = { kind: "cash", charityId: charity.id, cents: 0, orderId: draft.id };
     } else if (input.mode === "item") {
       spec = { kind: "item", orderItemId: String(input.orderItemId) };
     } else {
@@ -100,7 +113,7 @@ export async function startCheckout(input: StartInput): Promise<{ ok: true; payp
       }
       if (resolved.draft.externalId) {
         const live = await getGiftProduct(resolved.draft.externalId);
-        if (!live) {
+        if (!live || live.inStock === false) {
           return { ok: false, error: "This product is no longer available. Please pick another gift.", code: "UNAVAILABLE" };
         }
         if (live.priceCents !== resolved.amountCents) {
@@ -124,7 +137,7 @@ export async function startCheckout(input: StartInput): Promise<{ ok: true; payp
     return { ok: true, paypalOrderId };
   } catch (err) {
     if (err instanceof GivingError) return { ok: false, error: err.message };
-    console.error("startCheckout failed", err);
+    console.error("startCheckout failed");
     return { ok: false, error: "We couldn't start the PayPal checkout. Please try again." };
   }
 }
@@ -171,18 +184,27 @@ export async function finishCheckout(
   try {
     // The intent was chosen by our server in startCheckout; read it back from PayPal, not the browser.
     const before = await getPayPalOrder(paypalOrderId);
+    const unit = before.purchaseUnits?.[0];
+    const spec = unit?.customId ? decodeSpec(unit.customId) : null;
+    if (!spec || before.purchaseUnits?.length !== 1) return { ok: false, error: "This payment does not belong to Giftly." };
+    const expected = await resolveGiving(spec);
+    const expectedIntent = spec.kind === "cash" ? "CAPTURE" : "AUTHORIZE";
+    if (String(before.intent) !== expectedIntent || unit?.amount?.currencyCode !== "USD"
+      || unit.amount.value !== (expected.amountCents / 100).toFixed(2)) {
+      return { ok: false, error: "This payment does not match the saved checkout." };
+    }
     if (String(before.status) !== "COMPLETED") {
       if (String(before.intent) === "AUTHORIZE") await authorizePayPalOrder(paypalOrderId);
       else await capturePayPalOrder(paypalOrderId);
     }
   } catch (err) {
     // Can fail if it was already completed; verification below decides.
-    console.warn("capture/authorize call failed, verifying order state", err);
+    console.warn("capture/authorize call failed, verifying order state");
   }
 
   try {
     const verified = await verifyPayPalOrder(paypalOrderId);
-    if (!verified) return { ok: false, error: "PayPal did not confirm this payment, so nothing was charged or saved." };
+    if (!verified) return { ok: false, error: "PayPal did not confirm this payment. Check your sandbox activity before trying again." };
 
     const spec = decodeSpec(verified.customId);
     if (!spec) return { ok: false, error: "This payment does not belong to Giftly." };
@@ -213,6 +235,14 @@ export async function finishCheckout(
     const order = await db.$transaction(async (tx) => {
       const donorId = await getOrCreateDonor(tx, donorCookie, donorInput, verified.payerEmail);
 
+      if (spec.kind === "cash" && spec.orderId) {
+        const updated = await tx.order.updateMany({
+          where: { id: spec.orderId, status: OrderStatus.PENDING },
+          data: { donorId, paypalOrderId, status: OrderStatus.RECEIVED, ...payment },
+        });
+        if (!updated.count) throw new GivingError("This donation was already recorded.");
+        return { id: spec.orderId, donorId };
+      }
       // Product gift: turn the PENDING draft into a paid order (only if it is still a draft).
       if (resolved.draft) {
         const updated = await tx.order.updateMany({
@@ -275,7 +305,7 @@ export async function finishCheckout(
       if (again) return { ok: true, ref: again.id };
     }
     if (err instanceof GivingError) return { ok: false, error: err.message };
-    console.error("finishCheckout failed", err);
+    console.error("finishCheckout failed");
     return { ok: false, error: "We couldn't confirm your payment. If you were charged, it will be reviewed." };
   }
 }

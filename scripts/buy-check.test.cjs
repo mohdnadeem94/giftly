@@ -11,7 +11,7 @@ function load(file, mocks, env = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   vm.runInNewContext(source, {
-    module, exports: module.exports, process: { env }, Date, Number, Set,
+    module, exports: module.exports, process: { env }, Date, Number, Set, Buffer, Request, Response, Headers, File, Uint8Array,
     console: { warn() {}, error() {}, info() {} },
     require(name) { assert.ok(name in mocks, `Unexpected dependency: ${name}`); return mocks[name]; },
   }, { filename: file });
@@ -64,15 +64,15 @@ test('Channel3 ranks available offers before sold-out and preserves unknown avai
   assert.equal(result.priceCents, 200); assert.equal(result.inStock, null);
   assert.equal(normalizeProduct({ id: 'a', title: 'Book', offers: [offer(2), offer(3, 'in_stock')] }).priceCents, 300);
 });
-function holdsHarness() {
+function holdsHarness(env = {}) {
   const order = { id: 'order', totalCents: 2000, paymentState: 'AUTHORIZED', paypalAuthorizationId: 'auth', holdExpiresAt: new Date(Date.now() + 60000), authorizedCents: null };
   const captures = [], updates = [];
-  const db = { order: { findUnique: async () => order, updateMany: async (args) => { updates.push(args); return { count: 1 }; } }, orderItem: { updateMany: async (args) => updates.push(args) } };
+  const db = { $queryRaw: async () => [], order: { findUnique: async () => order, updateMany: async (args) => { updates.push(args); return { count: 1 }; } }, orderItem: { updateMany: async (args) => updates.push(args) } };
   db.$transaction = async (fn) => fn(db);
   const helper = load('lib/holds.ts', {
     '@prisma/client': { ItemStatus: { PAID: 'PAID' }, OrderStatus: {}, PaymentState: { AUTHORIZED: 'AUTHORIZED', CAPTURED: 'CAPTURED' } },
     '@/lib/db': { db }, '@/lib/paypal': { captureAuthorization: async (id, cents) => { captures.push(cents); return { ok: true, cents, status: 'COMPLETED' }; }, voidAuthorization: async () => true },
-  });
+  }, env);
   return { ...helper, captures, updates, order };
 }
 test('capture validates amount before PayPal, updates price atomically and preserves the original hold', async () => {
@@ -108,3 +108,5 @@ test('Buy action blocks without capture, returns refreshed rows, and never retri
     assert.equal(captures, 0); assert.equal(checks, 1);
   }
 });
+
+module.exports = { load, holdsHarness };

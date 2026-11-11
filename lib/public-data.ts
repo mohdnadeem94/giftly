@@ -2,6 +2,7 @@
 // HARD RULE: every function here uses explicit `select`s and returns only safe fields.
 // Never return donor emails, PayPal order IDs, or internal IDs of donors.
 import { ItemStatus, NeedStatus, OrderStatus, OrderType, PaymentState } from "@prisma/client";
+import { publicDonorLabel } from "@/lib/donor-label";
 import { db } from "@/lib/db";
 
 const COUNTED = [OrderStatus.RECEIVED, OrderStatus.PAID];
@@ -154,7 +155,7 @@ export async function getCause(slug: string): Promise<PublicCauseDetail | null> 
 
   const feed: PublicFeedEntry[] = recent.map((o) => ({
     date: o.createdAt.toISOString(),
-    displayName: !o.donor ? "Guest" : o.donor.anonymous ? "Anonymous" : o.donor.displayName,
+    displayName: publicDonorLabel(o.donor),
     type: o.type,
     amountCents: o.totalCents,
     status: o.type === OrderType.CASH ? o.status : (o.items[0]?.status ?? o.status),

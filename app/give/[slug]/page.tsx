@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ItemStatus, NeedStatus, OrderStatus } from "@prisma/client";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -15,6 +15,8 @@ import Checkout, { type DraftGift } from "@/components/Checkout";
 import GiftSearch from "@/components/GiftSearch";
 import LinkButton from "@/components/ui/LinkButton";
 import { db } from "@/lib/db";
+import { canGive, signInHref } from "@/lib/roles";
+import { getDemoSession } from "@/lib/session";
 
 export default async function GivePage({
   params,
@@ -25,6 +27,16 @@ export default async function GivePage({
 }) {
   const { slug } = await params;
   const { mode, source, item } = await searchParams;
+
+  // Giving needs the (simulated) sign-in. Come back to exactly this page afterwards.
+  const { role } = await getDemoSession();
+  if (!canGive(role)) {
+    const qs = new URLSearchParams();
+    if (mode) qs.set("mode", mode);
+    if (source) qs.set("source", source);
+    if (item) qs.set("item", item);
+    redirect(signInHref(`/give/${encodeURIComponent(slug)}${qs.size ? `?${qs}` : ""}`));
+  }
   const charity = await db.charity.findUnique({
     where: { slug },
     select: {

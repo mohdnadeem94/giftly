@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resetAndSeed } from "@/lib/seed";
+import { releaseHold } from "@/lib/holds";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,10 +18,18 @@ export async function POST(req: Request) {
   }
 
   try {
+    // Release (void) every outstanding PayPal hold first, so no sandbox donor is left with a hold
+    // that the wiped database no longer knows about.
+    const held = await db.order.findMany({ where: { paymentState: "AUTHORIZED" }, select: { id: true } });
+    let stillHeld = 0;
+    for (const o of held) if (!(await releaseHold(o.id, "CHARITY_RELEASED"))) stillHeld++;
+    if (stillHeld) {
+      return NextResponse.json({ error: `PayPal couldn't release ${stillHeld} payment hold(s). Try the reset again in a moment.` }, { status: 409 });
+    }
     const result = await resetAndSeed(db);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
-    console.error("resetDemoData failed", err);
+    console.error("resetDemoData failed");
     return NextResponse.json({ error: "Reset failed" }, { status: 500 });
   }
 }

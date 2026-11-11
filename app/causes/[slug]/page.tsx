@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Accordion from "@mui/material/Accordion";
+import Alert from "@mui/material/Alert";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import Box from "@mui/material/Box";
@@ -25,6 +26,9 @@ import StatusChip from "@/components/ui/StatusChip";
 import { getCause } from "@/lib/public-data";
 import { getChartData } from "@/lib/chart-data";
 import { money } from "@/lib/format";
+import { signInHref } from "@/lib/roles";
+import { getDonorGivingBySlug, getViewer } from "@/lib/viewer";
+import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 
 function parseFaq(text: string): { q: string; a: string }[] {
   return text
@@ -39,8 +43,12 @@ function parseFaq(text: string): { q: string; a: string }[] {
 
 export default async function CausePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const [cause, charts] = await Promise.all([getCause(slug), getChartData(slug)]);
+  const [cause, charts, viewer] = await Promise.all([getCause(slug), getChartData(slug), getViewer()]);
   if (!cause) notFound();
+  const isOwn = viewer.mode === "charity" && viewer.ownCharity?.slug === cause.slug;
+  const mine = viewer.mode === "donor" && viewer.donorId ? ((await getDonorGivingBySlug(viewer.donorId))[cause.slug] ?? 0) : 0;
+  const giftHref = `/give/${cause.slug}?mode=gift`;
+  const cashHref = `/give/${cause.slug}?mode=cash`;
 
   const faq = parseFaq(cause.faqText);
   const journey = [
@@ -157,15 +165,24 @@ export default async function CausePage({ params }: { params: Promise<{ slug: st
             ))}
           </Box>
 
-          <Card sx={{ overflow: "hidden" }}>
-            <ElfChat
-              charitySlug={cause.slug}
-              height={460}
-              greeting={`Hi! Ask me anything about ${cause.name}, or tell me who you'd like to help and I'll suggest a gift.`}
-              suggestions={["How are gifts delivered?", "What does cash pay for?", "A gift for a 7-year-old under $25"]}
-              placeholder="Ask about this cause…"
-            />
-          </Card>
+          {viewer.mode === "charity" ? (
+            isOwn && (
+              <Alert severity="info" sx={{ borderRadius: "14px" }}>
+                Donors can ask the Elf about {cause.name} on this page. It answers only from your story and FAQ above, and says
+                &ldquo;the charity hasn&apos;t shared that&rdquo; otherwise.
+              </Alert>
+            )
+          ) : (
+            <Card sx={{ overflow: "hidden" }}>
+              <ElfChat
+                charitySlug={cause.slug}
+                height={460}
+                greeting={`Hi! Ask me anything about ${cause.name}, or tell me who you'd like to help and I'll suggest a gift.`}
+                suggestions={["How are gifts delivered?", "What does cash pay for?", "A gift for a 7-year-old under $25"]}
+                placeholder="Ask about this cause…"
+              />
+            </Card>
+          )}
 
           {charts && charts.raisedOverTime.length > 0 && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -193,26 +210,57 @@ export default async function CausePage({ params }: { params: Promise<{ slug: st
                 raised of {money(cause.goalCents)} goal
               </Typography>
               <ProgressBar raisedCents={cause.raisedCents} goalCents={cause.goalCents} compact />
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, mt: 3 }}>
-                <LinkButton
-                  href={`/give/${cause.slug}?mode=gift`}
-                  variant="contained"
-                  size="large"
-                  startIcon={<CardGiftcardRoundedIcon />}
-                  fullWidth
-                >
-                  Give a gift
-                </LinkButton>
-                <LinkButton
-                  href={`/give/${cause.slug}?mode=cash`}
-                  variant="outlined"
-                  size="large"
-                  startIcon={<VolunteerActivismRoundedIcon />}
-                  fullWidth
-                >
-                  Give cash
-                </LinkButton>
-              </Box>
+              {viewer.mode === "charity" ? (
+                isOwn ? (
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, mt: 3 }}>
+                    <Box sx={{ p: 1.5, borderRadius: "14px", bgcolor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                      <Typography sx={{ fontWeight: 800 }}>This is your charity</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {cause.giftStatus.PAID} gift{cause.giftStatus.PAID === 1 ? "" : "s"} to buy · {cause.giftStatus.BOUGHT} to deliver
+                      </Typography>
+                    </Box>
+                    <LinkButton href="/charity" variant="contained" size="large" startIcon={<DashboardRoundedIcon />} fullWidth>
+                      Open dashboard
+                    </LinkButton>
+                  </Box>
+                ) : (
+                  <Alert severity="info" sx={{ mt: 3, borderRadius: "14px" }}>
+                    You&apos;re viewing another charity as {viewer.ownCharity?.name ?? "a charity"}. Charities can&apos;t donate from the
+                    charity view.
+                  </Alert>
+                )
+              ) : (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, mt: 3 }}>
+                  <LinkButton
+                    href={viewer.mode === "public" ? signInHref(giftHref) : giftHref}
+                    variant="contained"
+                    size="large"
+                    startIcon={<CardGiftcardRoundedIcon />}
+                    fullWidth
+                  >
+                    {viewer.mode === "public" ? "Sign in to give a gift" : "Give a gift"}
+                  </LinkButton>
+                  <LinkButton
+                    href={viewer.mode === "public" ? signInHref(cashHref) : cashHref}
+                    variant="outlined"
+                    size="large"
+                    startIcon={<VolunteerActivismRoundedIcon />}
+                    fullWidth
+                  >
+                    {viewer.mode === "public" ? "Sign in to give cash" : "Give cash"}
+                  </LinkButton>
+                  {mine > 0 && (
+                    <Box sx={{ p: 1.5, borderRadius: "14px", bgcolor: "#fff7ed", border: "1px solid #fed7aa", textAlign: "center" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        You&apos;ve given {money(mine)} here 💚
+                      </Typography>
+                      <LinkButton href="/my-gifts" size="small" sx={{ mt: 0.5 }}>
+                        Track my gifts
+                      </LinkButton>
+                    </Box>
+                  )}
+                </Box>
+              )}
 
               <Divider sx={{ my: 3 }} />
 

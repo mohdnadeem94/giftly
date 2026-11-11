@@ -1,7 +1,8 @@
 "use client";
 
 import NextLink from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -11,22 +12,28 @@ import Typography from "@mui/material/Typography";
 import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import Logo from "./Logo";
 import RoleSwitcher from "./RoleSwitcher";
-import type { Role } from "@/lib/roles";
+import { signInHref, type Role } from "@/lib/roles";
+import { demoSignOut } from "@/app/sign-in/actions";
 
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/causes", label: "Causes" },
 ];
 
-type Props = { role: Role; charitySlug: string | null; charities: { slug: string; name: string }[] };
+type Props = { role: Role; charitySlug: string | null; charities: { slug: string; name: string }[]; donorName?: string | null };
 
-export default function AppHeader({ role, charitySlug, charities }: Props) {
+export default function AppHeader({ role, charitySlug, charities, donorName }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [signingOut, startSignOut] = useTransition();
+  // The role shown in the header: changes instantly when switching, then follows the server.
+  const [navRole, setNavRole] = useState<Role>(role);
+  useEffect(() => setNavRole(role), [role]);
   const nav = [
     ...NAV,
-    ...(role === "donor" ? [{ href: "/my-gifts", label: "My gifts" }] : []),
-    ...(role === "charity" || role === "admin" ? [{ href: "/charity", label: "Dashboard" }] : []),
-    ...(role === "admin" ? [{ href: "/elf-test", label: "Elf tests" }] : []),
+    ...(navRole === "donor" ? [{ href: "/my-gifts", label: "My gifts" }] : []),
+    ...(navRole === "charity" || navRole === "admin" ? [{ href: "/charity", label: "Dashboard" }] : []),
+    ...(navRole === "admin" ? [{ href: "/elf-test", label: "Elf tests" }] : []),
   ];
 
   return (
@@ -83,10 +90,38 @@ export default function AppHeader({ role, charitySlug, charities }: Props) {
             </Box>
             <Box sx={{ flex: 1, display: { xs: "none", md: "block" } }} />
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: "auto", maxWidth: "100%" }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", sm: "block" }, fontWeight: 600 }}>
+              {navRole === "public" && pathname !== "/sign-in" && (
+                <Button component={NextLink} href={signInHref(pathname || "/")} variant="contained" size="small" sx={{ whiteSpace: "nowrap" }}>
+                  Sign in
+                </Button>
+              )}
+              {navRole === "donor" && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, display: { xs: "none", sm: "block" }, whiteSpace: "nowrap" }}>
+                    Hi, {donorName || "donor"}
+                  </Typography>
+                  <Button
+                    size="small"
+                    color="inherit"
+                    disabled={signingOut}
+                    sx={{ color: "text.secondary", whiteSpace: "nowrap" }}
+                    onClick={() =>
+                      startSignOut(async () => {
+                        setNavRole("public");
+                        await demoSignOut();
+                        router.push("/");
+                        router.refresh();
+                      })
+                    }
+                  >
+                    Sign out
+                  </Button>
+                </Box>
+              )}
+              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", lg: "block" }, fontWeight: 600 }}>
                 Demo role
               </Typography>
-              <RoleSwitcher role={role} charitySlug={charitySlug} charities={charities} />
+              <RoleSwitcher role={role} charitySlug={charitySlug} charities={charities} onRoleChange={setNavRole} />
             </Box>
           </Toolbar>
         </Container>

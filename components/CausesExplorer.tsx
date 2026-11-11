@@ -7,7 +7,7 @@ import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import type { ChartData } from "@/lib/chart-data";
 import type { PublicCause } from "@/lib/public-data";
-import CausesGrid from "@/components/grid/CausesGrid";
+import CausesGrid, { type CausesViewer } from "@/components/grid/CausesGrid";
 import { CategoryDonut, ChartCaption, TopCausesBar } from "@/components/charts/GiftlyCharts";
 import { useRouter } from "next/navigation";
 
@@ -16,10 +16,14 @@ export default function CausesExplorer({
   causes,
   data,
   initialCategory = null,
+  viewer,
+  myGiving = null,
 }: {
   causes: PublicCause[];
   data: ChartData;
   initialCategory?: string | null;
+  viewer?: CausesViewer;
+  myGiving?: Record<string, number> | null;
 }) {
   const router = useRouter();
   const [category, setCategory] = useState<string | null>(
@@ -46,7 +50,7 @@ export default function CausesExplorer({
             <Chip label={`Category: ${category}`} onDelete={() => setCategory(null)} color="primary" size="small" />
           )}
         </Box>
-        <CausesGrid causes={causes} category={category} />
+        <CausesGrid causes={causes} category={category} viewer={viewer} myGiving={myGiving} />
       </Paper>
     </Box>
   );

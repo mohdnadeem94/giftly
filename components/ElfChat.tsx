@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { ROLE_COOKIE, canGive, isRole, signInHref } from "@/lib/roles";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
@@ -44,6 +45,13 @@ type Props = {
   placeholder?: string;
 };
 
+/** The demo role cookie is readable in the browser (it is not a security boundary; the server re-checks). */
+function browserCanChat(): boolean {
+  const raw = document.cookie.split("; ").find((c) => c.startsWith(`${ROLE_COOKIE}=`))?.split("=")[1];
+  const role = raw ? decodeURIComponent(raw) : "public";
+  return isRole(role) && canGive(role);
+}
+
 function newSessionId() {
   try {
     return crypto.randomUUID();
@@ -60,7 +68,10 @@ export default function ElfChat({
   placeholder = "Tell the Elf what you'd like to give…",
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [sessionId] = useState(newSessionId);
+  const [signedIn, setSignedIn] = useState(true); // corrected after mount; avoids a hydration mismatch
+  const askedRef = useRef(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -80,9 +91,31 @@ export default function ElfChat({
     return () => clearInterval(t);
   }, [loading]);
 
+  // Public visitors: send them to the simulated sign-in, then come back and ask the same question.
+  function goSignIn(question: string) {
+    router.push(signInHref(pathname || "/", question));
+  }
+
+  // Coming back from sign-in with ?ask=...: ask the Elf that question once, then tidy the URL.
+  useEffect(() => {
+    const ok = browserCanChat();
+    setSignedIn(ok);
+    if (askedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const ask = params.get("ask");
+    if (!ask) return;
+    askedRef.current = true;
+    params.delete("ask");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    if (ok) void send(ask);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function send(text: string) {
     const content = text.trim().slice(0, 600);
     if (!content || loading) return;
+    if (!browserCanChat()) return goSignIn(content);
     setError("");
     const next: Msg[] = [...messages, { role: "user", content }];
     setMessages(next);
@@ -99,6 +132,7 @@ export default function ElfChat({
         }),
       });
       const data = await res.json();
+      if (res.status === 401 && data.code === "SIGN_IN") return goSignIn(content);
       if (!res.ok) throw new Error(data.error || "The Elf couldn't answer.");
       setMessages((m) => [...m, { role: "assistant", content: data.reply, cards: data.cards, cash: data.cash }]);
     } catch (e) {
@@ -243,6 +277,11 @@ export default function ElfChat({
             <SendRoundedIcon fontSize="small" />
           </IconButton>
         </Box>
+        {!signedIn && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", textAlign: "center", mt: 0.75 }}>
+            You&apos;ll sign in (simulated) first, then the Elf answers.
+          </Typography>
+        )}
       </Box>
     </Box>
   );

@@ -44,11 +44,12 @@ export async function updateGiftStatus(itemIds: string[], to: string): Promise<R
       productUrl: true,
       buyBlockedReason: true,
       order: { select: { totalCents: true, paymentState: true } },
-      proofs: { orderBy: { createdAt: "desc" }, take: 1, select: { aiResult: true, adminDecision: true } },
+      proofs: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, aiResult: true, adminDecision: true } },
     },
   });
 
-  let allowed = items.filter((i) => isAllowedTransition(i.status, to));
+  let allowed = items.filter((i) => isAllowedTransition(i.status, to)
+    && (i.order.paymentState === PaymentState.CAPTURED || (to === "BOUGHT" && i.order.paymentState === PaymentState.AUTHORIZED)));
   if (to === "DELIVERED") {
     const withProof = allowed.filter((i) => proofAllowsDelivery(i.proofs[0]));
     if (withProof.length === 0 && allowed.length > 0) {
@@ -90,7 +91,7 @@ export async function updateGiftStatus(itemIds: string[], to: string): Promise<R
         charged.push(i);
       } catch (err) {
         chargeError = err instanceof HoldError ? err.message : "PayPal couldn't charge the held payment.";
-        if (!(err instanceof HoldError)) console.error("captureHold failed", err);
+        if (!(err instanceof HoldError)) console.error("captureHold failed");
       }
     }
     allowed = charged;
@@ -111,7 +112,14 @@ export async function updateGiftStatus(itemIds: string[], to: string): Promise<R
   // Re-check the current status inside the update so two quick clicks can't skip a step.
   const now = new Date();
   await db.orderItem.updateMany({
-    where: { id: { in: allowedIds }, status: to === "BOUGHT" ? ItemStatus.PAID : ItemStatus.BOUGHT },
+    where: {
+      id: { in: allowedIds }, status: to === "BOUGHT" ? ItemStatus.PAID : ItemStatus.BOUGHT,
+      order: { charityId: charity.id, status: OrderStatus.PAID, paymentState: PaymentState.CAPTURED },
+      ...(to === "DELIVERED" ? { proofs: { some: {
+        id: { in: allowed.map((i) => i.proofs[0]?.id).filter((id): id is string => !!id) },
+        OR: [{ adminDecision: AdminDecision.APPROVED }, { adminDecision: null, aiResult: "MATCH" as const }],
+      } } } : {}),
+    },
     data: to === "BOUGHT" ? { status: ItemStatus.BOUGHT, boughtAt: now } : { status: ItemStatus.DELIVERED, deliveredAt: now },
   });
 

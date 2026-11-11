@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { llmConfigured } from "@/lib/llm";
 import { MAX_MESSAGE_CHARS, runElf } from "@/lib/elf/agent";
+import { canGive } from "@/lib/roles";
+import { getDemoSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -8,6 +10,10 @@ export const maxDuration = 60;
 
 // POST /api/elf  { sessionId, messages: [{role:"user"|"assistant", content}], charitySlug? }
 export async function POST(req: Request) {
+  // The Elf is for signed-in donors (simulated sign-in). The chat box sends public visitors to /sign-in.
+  if (!canGive((await getDemoSession()).role)) {
+    return NextResponse.json({ error: "Please sign in to chat with the Elf.", code: "SIGN_IN" }, { status: 401 });
+  }
   if (!llmConfigured()) {
     return NextResponse.json({ error: "The Elf isn't configured yet (missing LLM_API_KEY)." }, { status: 503 });
   }

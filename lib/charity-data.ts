@@ -1,5 +1,6 @@
 // Data for the charity dashboard (server only). Always scoped to ONE charity.
 import { ItemStatus, OrderStatus, OrderType, PaymentState } from "@prisma/client";
+import { publicDonorLabel } from "@/lib/donor-label";
 import { db } from "@/lib/db";
 import { getDemoSession } from "@/lib/session";
 import { proofAllowsDelivery } from "@/lib/proof-check";
@@ -95,7 +96,7 @@ export function toGiftRow(r: GiftRowRecord): CharityGiftRow {
     ageRange: r.ageRange,
     priceCents: r.priceAtPaymentCents ?? r.priceAtRecommendationCents,
     status: r.status as CharityGiftRow["status"],
-    donor: !donor ? "Guest" : donor.anonymous ? "Anonymous" : donor.displayName,
+    donor: publicDonorLabel(donor),
     proof: proof ? (proof.adminDecision ?? proof.aiResult ?? "UPLOADED") : null,
     proofId: proof?.id ?? null,
     proofNotes: proof?.aiNotes ?? null,

@@ -6,9 +6,6 @@
   `captureOrder`, `@paypal/react-paypal-js/sdk-v6` `PayPalProvider` + `PayPalOneTimePaymentButton`)
 - PayPal, "PayPal Checkout with Node.js and Express": https://developer.paypal.com/guides/node-express
 
-APIMatic ContextMatic was not available in the environment where this step was written,
-so the code follows the official PayPal guides above. (If you run ContextMatic later, log
-its lookups in `docs/apimatic-usage.md`.)
 
 ## Flow
 1. Donor picks a charity and a cash amount ($1 to $500) or a wishlist gift.

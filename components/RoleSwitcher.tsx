@@ -21,6 +21,8 @@ type Props = {
   role: Role;
   charitySlug: string | null;
   charities: { slug: string; name: string }[];
+  /** Lets the header update its links the moment the role changes (before the server responds). */
+  onRoleChange?: (role: Role) => void;
 };
 
 const ROLE_MESSAGE: Record<Role, string> = {
@@ -31,7 +33,7 @@ const ROLE_MESSAGE: Record<Role, string> = {
 };
 
 // Demo-only role switcher. Not authentication: server routes validate every action themselves.
-export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
+export default function RoleSwitcher({ role, charitySlug, charities, onRoleChange }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
@@ -58,13 +60,17 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
   const refresh = (msg: string, goTo?: string) => {
     setMessage(msg);
     startTransition(() => {
+      // The header lives in the shared layout, which a client-side push does NOT re-render.
+      // Always refresh too, so every part of the page (header included) reflects the new role.
       if (goTo) router.push(goTo);
-      else router.refresh();
+      router.refresh();
     });
   };
 
   /** Pages that only make sense for one role: leave them when switching to another role. */
   function landingFor(next: Role): string | undefined {
+    if (pathname.startsWith("/give") && next === "charity") return "/charity"; // charities don't give
+    if (pathname.startsWith("/sign-in") && next !== "public") return next === "donor" ? "/" : "/charity";
     if (pathname.startsWith("/charity") && next !== "charity" && next !== "admin") return next === "donor" ? "/my-gifts" : "/";
     if (pathname.startsWith("/my-gifts") && next !== "donor") return next === "charity" || next === "admin" ? "/charity" : "/";
     if (pathname.startsWith("/elf-test") && next !== "admin") return next === "charity" ? "/charity" : "/";
@@ -73,6 +79,7 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
 
   function chooseRole(next: Role) {
     setShownRole(next);
+    onRoleChange?.(next);
     setCookie(ROLE_COOKIE, next);
     if ((next === "charity" || next === "admin") && shownCharity) setCookie(CHARITY_COOKIE, shownCharity);
     refresh(ROLE_MESSAGE[next], landingFor(next));

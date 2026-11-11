@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -14,9 +15,11 @@ import StatusChip from "@/components/ui/StatusChip";
 import { getCurrentDonor, getDonorGifts } from "@/lib/donor-data";
 import { getDemoSession } from "@/lib/session";
 import { money, shortDate } from "@/lib/format";
+import { signInHref } from "@/lib/roles";
 
 export default async function MyGiftsPage() {
   const [{ role }, donor] = await Promise.all([getDemoSession(), getCurrentDonor()]);
+  if (role === "public") redirect(signInHref("/my-gifts")); // donors sign in (simulated) first
 
   if (!donor) {
     return (
