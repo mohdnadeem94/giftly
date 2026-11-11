@@ -17,11 +17,13 @@ import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
 import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
 import ElfChat from "@/components/ElfChat";
+import { ChartCaption, RaisedOverTimeChart } from "@/components/charts/GiftlyCharts";
 import DonationsGrid from "@/components/grid/DonationsGrid";
 import ProgressBar from "@/components/ProgressBar";
 import LinkButton from "@/components/ui/LinkButton";
 import StatusChip from "@/components/ui/StatusChip";
 import { getCause } from "@/lib/public-data";
+import { getChartData } from "@/lib/chart-data";
 import { money } from "@/lib/format";
 
 function parseFaq(text: string): { q: string; a: string }[] {
@@ -37,7 +39,7 @@ function parseFaq(text: string): { q: string; a: string }[] {
 
 export default async function CausePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const cause = await getCause(slug);
+  const [cause, charts] = await Promise.all([getCause(slug), getChartData(slug)]);
   if (!cause) notFound();
 
   const faq = parseFaq(cause.faqText);
@@ -164,6 +166,13 @@ export default async function CausePage({ params }: { params: Promise<{ slug: st
               placeholder="Ask about this cause…"
             />
           </Card>
+
+          {charts && charts.raisedOverTime.length > 0 && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <ChartCaption cause={cause.slug} />
+              <RaisedOverTimeChart data={charts} height={260} />
+            </Box>
+          )}
 
           <Card>
             <CardContent sx={{ p: 3, pb: "24px !important" }}>

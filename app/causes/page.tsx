@@ -1,11 +1,12 @@
-import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
-import CauseCard from "@/components/CauseCard";
+import CausesExplorer from "@/components/CausesExplorer";
 import { listCauses } from "@/lib/public-data";
+import { getChartData } from "@/lib/chart-data";
 
-export default async function CausesPage() {
-  const causes = await listCauses();
+export default async function CausesPage({ searchParams }: { searchParams: Promise<{ category?: string }> }) {
+  const { category } = await searchParams;
+  const [causes, charts] = await Promise.all([listCauses(), getChartData()]);
 
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 5, md: 7 } }}>
@@ -16,13 +17,10 @@ export default async function CausesPage() {
         Causes that need your help
       </Typography>
       <Typography color="text.secondary" sx={{ maxWidth: 620, mb: 4 }}>
-        Give cash for running costs, or a real gift you can follow all the way to delivery.
+        Give cash for running costs, or a real gift you can follow all the way to delivery. Click a chart slice to
+        filter the list.
       </Typography>
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" }, gap: 3 }}>
-        {causes.map((c) => (
-          <CauseCard key={c.slug} cause={c} />
-        ))}
-      </Box>
+      {charts && <CausesExplorer causes={causes} data={charts} initialCategory={category ?? null} />}
     </Container>
   );
 }

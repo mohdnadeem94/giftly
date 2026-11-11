@@ -14,8 +14,11 @@ import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
 import CauseCard from "@/components/CauseCard";
 import ElfChat from "@/components/ElfChat";
+import HomeCharts from "@/components/charts/HomeCharts";
+import DonationsGrid from "@/components/grid/DonationsGrid";
 import LinkButton from "@/components/ui/LinkButton";
 import { getPublicStats, listCauses } from "@/lib/public-data";
+import { getChartData, getPublicFeed } from "@/lib/chart-data";
 import { money } from "@/lib/format";
 
 const STEPS = [
@@ -42,7 +45,7 @@ const STEPS = [
 ];
 
 export default async function Home() {
-  const [stats, causes] = await Promise.all([getPublicStats(), listCauses()]);
+  const [stats, causes, charts, feed] = await Promise.all([getPublicStats(), listCauses(), getChartData(), getPublicFeed(100)]);
 
   const tiles = [
     { icon: <VolunteerActivismRoundedIcon />, label: "Total raised", value: money(stats.totalRaisedCents), color: "#166534" },
@@ -207,6 +210,24 @@ export default async function Home() {
               </Typography>
             </Paper>
           ))}
+        </Box>
+      </Container>
+
+      {/* Transparency */}
+      <Container maxWidth="lg" id="transparency" sx={{ mt: { xs: 8, md: 12 }, scrollMarginTop: 96 }}>
+        <Typography variant="overline" color="secondary">
+          Open books
+        </Typography>
+        <Typography variant="h3" sx={{ fontSize: { xs: "1.8rem", md: "2.4rem" }, mb: 1 }}>
+          Where the money goes
+        </Typography>
+        <Typography color="text.secondary" sx={{ maxWidth: 640, mb: 3 }}>
+          Every chart is built live from real donations. No donor emails or payment IDs are ever shown.
+        </Typography>
+        {charts && <HomeCharts data={charts} />}
+        <Box sx={{ mt: 2.5, p: 2.5, border: "1px solid", borderColor: "divider", borderRadius: "20px", bgcolor: "background.paper" }}>
+          <Typography sx={{ fontWeight: 800, mb: 1 }}>Latest donations</Typography>
+          <DonationsGrid rows={feed} showCause />
         </Box>
       </Container>
 
