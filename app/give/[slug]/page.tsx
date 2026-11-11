@@ -29,7 +29,7 @@ export default async function GivePage({
   const { mode, source, item } = await searchParams;
 
   // Giving needs the (simulated) sign-in. Come back to exactly this page afterwards.
-  const { role } = await getDemoSession();
+  const { role, donorName } = await getDemoSession();
   if (!canGive(role)) {
     const qs = new URLSearchParams();
     if (mode) qs.set("mode", mode);
@@ -222,6 +222,7 @@ export default async function GivePage({
                 needs={needs}
                 draft={draft}
                 paypalClientId={paypalClientId}
+                defaultName={donorName ?? ""}
               />
             </>
           )}

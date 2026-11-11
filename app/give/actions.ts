@@ -7,7 +7,7 @@ import { Channel3Error, getGiftProduct } from "@/lib/channel3";
 import { CASH_MIN_CENTS, CASH_MAX_CENTS, GIFT_MAX_CENTS, GivingError, decodeSpec, encodeSpec, resolveGiving, type GivingSpec } from "@/lib/giving";
 import { authorizePayPalOrder, capturePayPalOrder, createPayPalOrder, getPayPalOrder, verifyPayPalOrder } from "@/lib/paypal";
 import { holdExpiry } from "@/lib/holds";
-import { canGive } from "@/lib/roles";
+import { DONOR_NAME_COOKIE, canGive } from "@/lib/roles";
 import { getDemoSession } from "@/lib/session";
 
 const SIGN_IN_ERROR = "Please sign in as a donor to give.";
@@ -294,6 +294,15 @@ export async function finishCheckout(
         sameSite: "lax",
         path: "/",
         maxAge: 60 * 60 * 24 * 90,
+        secure: process.env.NODE_ENV === "production",
+      });
+    }
+    const usedName = donorInput.anonymous || !donorInput.displayName?.trim() ? "" : cleanName(donorInput.displayName);
+    if (usedName) {
+      store.set(DONOR_NAME_COOKIE, encodeURIComponent(usedName), {
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
         secure: process.env.NODE_ENV === "production",
       });
     }

@@ -37,6 +37,7 @@ export type DraftGift = {
 };
 
 type Props = {
+  defaultName?: string; // the name entered at the (simulated) sign-in
   charity: { slug: string; name: string };
   mode: "cash" | "gift";
   needs: Need[];
@@ -51,12 +52,12 @@ function fmt(cents: number) {
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
 
-export default function Checkout({ charity, mode, needs, paypalClientId, draft = null }: Props) {
+export default function Checkout({ charity, mode, needs, paypalClientId, draft = null, defaultName = "" }: Props) {
   const router = useRouter();
   const [cashCents, setCashCents] = useState(2500);
   const [customAmount, setCustomAmount] = useState("");
   const [needId, setNeedId] = useState(needs[0]?.id ?? "");
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState(defaultName);
   const [anonymous, setAnonymous] = useState(false);
   const [status, setStatus] = useState<"idle" | "starting" | "processing" | "cancelled" | "error">("idle");
   const [message, setMessage] = useState("");

@@ -4,6 +4,7 @@
 // "signing in" just switches this browser to the Donor demo role and remembers a display name.
 import { cookies } from "next/headers";
 import { CHARITY_COOKIE, DONOR_NAME_COOKIE, ROLE_COOKIE, safeNext } from "@/lib/roles";
+import { DONOR_COOKIE, getCurrentDonor } from "@/lib/donor-data";
 import { db } from "@/lib/db";
 
 // Not httpOnly: the demo role switcher in the header changes these cookies in the browser too.
@@ -21,6 +22,9 @@ export async function demoSignIn(input: { name: string; next: string; ask?: stri
   if (name.length < 2) return { ok: false, error: "Please enter a display name (at least 2 characters)." };
 
   const store = await cookies();
+  // A different name means a different person: forget the previous donor's gifts on this browser.
+  const previous = await getCurrentDonor().catch(() => null);
+  if (previous && previous.displayName.trim().toLowerCase() !== name.toLowerCase()) store.delete(DONOR_COOKIE);
   store.set(ROLE_COOKIE, "donor", opts);
   store.set(DONOR_NAME_COOKIE, encodeURIComponent(name), opts);
 

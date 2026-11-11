@@ -26,7 +26,7 @@ export function holdExpiry(paypalExpiresAt: Date | null, now = new Date()): Date
  * Release a held gift payment. The donor is not charged, the order is cancelled and the gift leaves
  * the charity's list. Only acts on orders that are still held.
  */
-export async function releaseHold(orderId: string, reason: "EXPIRED" | "CHARITY_RELEASED"): Promise<boolean> {
+export async function releaseHold(orderId: string, reason: "EXPIRED" | "CHARITY_RELEASED" | "ADMIN_RELEASED"): Promise<boolean> {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
     const order = await tx.order.findUnique({

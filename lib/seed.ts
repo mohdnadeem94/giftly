@@ -1,10 +1,13 @@
 // Demo seed data for Giftly. Used by `npm run db:seed` and the admin reset route.
 // Everything here is fictional demo data. No real people, no children's personal data.
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import {
   ItemStatus,
   MessageType,
   NeedStatus,
   OrderStatus,
+  ProofResult,
   OrderType,
   type PrismaClient,
 } from "@prisma/client";
@@ -271,7 +274,34 @@ export async function resetAndSeed(db: PrismaClient) {
     if (c.needs[1]) await db.need.update({ where: { id: c.needs[1].id }, data: { status: NeedStatus.FUNDED } });
   }
 
+  // One disputed receipt so the Admin console's "Receipts to review" queue isn't empty in the demo.
+  // Uses the sample "wrong item" receipt from docs/sample-receipts (skipped if the file isn't there).
+  let disputedReceipts = 0;
+  try {
+    const image = await readFile(path.join(process.cwd(), "docs", "sample-receipts", "receipt-MISMATCH-wrong-item.png"));
+    const bought = await db.orderItem.findFirst({
+      where: { status: ItemStatus.BOUGHT, order: { status: OrderStatus.PAID } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, productTitle: true, priceAtPaymentCents: true },
+    });
+    if (bought) {
+      await db.proof.create({
+        data: {
+          orderItemId: bought.id,
+          imageData: image,
+          mimeType: "image/png",
+          aiResult: ProofResult.MISMATCH,
+          aiNotes: `Demo: the receipt shows a different item than "${bought.productTitle}", so it needs an admin decision before delivery.`,
+        },
+      });
+      disputedReceipts = 1;
+    }
+  } catch {
+    // Sample receipt not available (e.g. trimmed deployment): the demo still works without it.
+  }
+
   return {
+    disputedReceipts,
     charities: charities.length,
     needs: charities.reduce((n, c) => n + c.needs.length, 0),
     donors: donors.length,

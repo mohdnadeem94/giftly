@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getDemoSession } from "@/lib/session";
+import { getCurrentDonor } from "@/lib/donor-data";
 import AppHeader from "./AppHeader";
 
 export default async function TopBar() {
@@ -10,5 +11,8 @@ export default async function TopBar() {
   } catch {
     // Database unavailable: keep the header usable.
   }
-  return <AppHeader role={session.role} charitySlug={session.charitySlug} charities={charities} donorName={session.donorName} />;
+  // One name everywhere: the name entered at sign-in. The donor record's name is only a fallback.
+  const donor = session.role === "donor" && !session.donorName ? await getCurrentDonor().catch(() => null) : null;
+  const donorName = session.donorName ?? donor?.displayName ?? null;
+  return <AppHeader role={session.role} charitySlug={session.charitySlug} charities={charities} donorName={donorName} />;
 }

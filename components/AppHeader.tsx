@@ -32,8 +32,14 @@ export default function AppHeader({ role, charitySlug, charities, donorName }: P
   const nav = [
     ...NAV,
     ...(navRole === "donor" ? [{ href: "/my-gifts", label: "My gifts" }] : []),
-    ...(navRole === "charity" || navRole === "admin" ? [{ href: "/charity", label: "Dashboard" }] : []),
-    ...(navRole === "admin" ? [{ href: "/elf-test", label: "Elf tests" }] : []),
+    ...(navRole === "charity" ? [{ href: "/charity", label: "Dashboard" }] : []),
+    ...(navRole === "admin"
+      ? [
+          { href: "/admin", label: "Admin console" },
+          { href: "/charity", label: "Charity view" },
+          { href: "/elf-test", label: "Elf tests" },
+        ]
+      : []),
   ];
 
   return (

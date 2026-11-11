@@ -36,9 +36,9 @@ There are no real accounts. The **demo role switcher** in the header (Public · 
 | **Public** | Browse causes, charts and the public donation feed. Clicking **Donate**, **Give** or asking the Elf opens a **simulated sign-in** (display name only, no password), then returns you to what you were doing (the Elf answers your question automatically). |
 | **Donor** | Give gifts and cash, chat with the Elf, **My gifts** tracker, "You gave" column on causes. |
 | **Charity** | Pick which charity you act as. Your cause is highlighted, other causes are read-only (charities can't donate), and the **Dashboard** manages your gifts. |
-| **Admin** | Donor view plus the dashboard (receipt override) and **Elf tests**. |
+| **Admin** | The **Admin console**, a platform view across all charities: overview totals, a **receipts to review** queue (approve or reject receipts the AI couldn't confirm), every **payment hold** with time left and a Release button, a charities table with "Open dashboard", and demo tools (reset with passcode, Elf tests). |
 
-Demo data reset needs the `ADMIN_PASSCODE` (see [Reset the demo](#reset-the-demo)); choosing Admin in the switcher is not enough.
+Demo data reset needs the `ADMIN_PASSCODE` as well as the Admin role (in the Admin console, or see [Reset the demo](#reset-the-demo)).
 
 ## How the money works
 

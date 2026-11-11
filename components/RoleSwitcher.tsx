@@ -70,10 +70,12 @@ export default function RoleSwitcher({ role, charitySlug, charities, onRoleChang
   /** Pages that only make sense for one role: leave them when switching to another role. */
   function landingFor(next: Role): string | undefined {
     if (pathname.startsWith("/give") && next === "charity") return "/charity"; // charities don't give
-    if (pathname.startsWith("/sign-in") && next !== "public") return next === "donor" ? "/" : "/charity";
+    if (pathname.startsWith("/sign-in") && next !== "public" && next !== "admin") return next === "donor" ? "/" : "/charity";
     if (pathname.startsWith("/charity") && next !== "charity" && next !== "admin") return next === "donor" ? "/my-gifts" : "/";
-    if (pathname.startsWith("/my-gifts") && next !== "donor") return next === "charity" || next === "admin" ? "/charity" : "/";
+    if (pathname.startsWith("/my-gifts") && next !== "donor" && next !== "admin") return next === "charity" ? "/charity" : "/";
     if (pathname.startsWith("/elf-test") && next !== "admin") return next === "charity" ? "/charity" : "/";
+    if (pathname.startsWith("/admin") && next !== "admin") return next === "charity" ? "/charity" : next === "donor" ? "/my-gifts" : "/";
+    if (next === "admin" && (pathname.startsWith("/charity") || pathname.startsWith("/my-gifts") || pathname.startsWith("/sign-in"))) return "/admin";
     return undefined;
   }
 
@@ -131,7 +133,7 @@ export default function RoleSwitcher({ role, charitySlug, charities, onRoleChang
           </ToggleButton>
         ))}
       </ToggleButtonGroup>
-      {(shownRole === "charity" || shownRole === "admin") && charities.length > 0 && (
+      {(shownRole === "charity" || (shownRole === "admin" && pathname.startsWith("/charity"))) && charities.length > 0 && (
         <Select
           size="small"
           value={shownCharity}

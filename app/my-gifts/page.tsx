@@ -8,6 +8,7 @@ import Typography from "@mui/material/Typography";
 import CardGiftcardRoundedIcon from "@mui/icons-material/CardGiftcardRounded";
 import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import GiftTimeline from "@/components/GiftTimeline";
+import DonorImpactCard from "@/components/DonorImpactCard";
 import { ForgetDonorButton, ViewDemoDonorButton } from "@/components/DemoDonorButtons";
 import AppLink from "@/components/ui/AppLink";
 import LinkButton from "@/components/ui/LinkButton";
@@ -18,7 +19,7 @@ import { money, shortDate } from "@/lib/format";
 import { signInHref } from "@/lib/roles";
 
 export default async function MyGiftsPage() {
-  const [{ role }, donor] = await Promise.all([getDemoSession(), getCurrentDonor()]);
+  const [{ role, donorName }, donor] = await Promise.all([getDemoSession(), getCurrentDonor()]);
   if (role === "public") redirect(signInHref("/my-gifts")); // donors sign in (simulated) first
 
   if (!donor) {
@@ -45,11 +46,25 @@ export default async function MyGiftsPage() {
     );
   }
 
+  const name = donorName ?? donor.displayName; // the sign-in name is used everywhere
   const gifts = await getDonorGifts(donor.id);
   const giftOrders = gifts.filter((g) => g.item && g.payment !== "RELEASED");
   const delivered = giftOrders.filter((g) => g.item?.status === "DELIVERED").length;
   const total = gifts.filter((g) => g.payment === "CHARGED").reduce((s, g) => s + g.totalCents, 0);
   const onHold = gifts.filter((g) => g.payment === "HELD").reduce((s, g) => s + g.totalCents, 0);
+  const active = gifts.filter((g) => g.payment !== "RELEASED");
+  const impact = {
+    causesHelped: new Set(active.map((g) => g.charity.slug)).size,
+    giftsGiven: giftOrders.length,
+    delivered,
+    givenCents: total,
+    onHoldCents: onHold,
+    // Price drops at Buy: PayPal held more than was finally charged (the rest was released).
+    savedCents: gifts
+      .filter((g) => g.payment === "CHARGED" && g.authorizedCents != null)
+      .reduce((s, g) => s + Math.max(0, (g.authorizedCents ?? 0) - g.totalCents), 0),
+    releasedCount: gifts.filter((g) => g.payment === "RELEASED").length,
+  };
 
   return (
     <Container maxWidth="md" sx={{ py: { xs: 4, md: 6 } }}>
@@ -59,27 +74,14 @@ export default async function MyGiftsPage() {
             My gifts
           </Typography>
           <Typography variant="h3" sx={{ fontSize: { xs: "1.9rem", md: "2.4rem" } }}>
-            Thank you, {donor.displayName}! 💚
+            Thank you, {name}! 💚
           </Typography>
           <Typography color="text.secondary">Follow every gift from click to delivery.</Typography>
         </Box>
         <ForgetDonorButton />
       </Box>
 
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1.5, mb: 3 }}>
-        {[
-          { label: "Gifts given", value: String(giftOrders.length) },
-          { label: "Delivered", value: String(delivered) },
-          { label: onHold ? `Charged · ${money(onHold)} on hold` : "Total given", value: money(total) },
-        ].map((t) => (
-          <Paper key={t.label} elevation={0} sx={{ p: 2, border: "1px solid", borderColor: "divider", textAlign: "center" }}>
-            <Typography sx={{ fontWeight: 800, fontSize: "1.6rem", color: "primary.main" }}>{t.value}</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-              {t.label}
-            </Typography>
-          </Paper>
-        ))}
-      </Box>
+      <DonorImpactCard impact={impact} name={name} />
 
       {gifts.length === 0 && (
         <Paper elevation={0} sx={{ p: 3, border: "1px solid", borderColor: "divider", textAlign: "center" }}>

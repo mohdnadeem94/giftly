@@ -19,7 +19,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Simulated sign-in: no accounts, no passwords. It only switches this browser to the Donor demo role. */
 export default function DemoSignIn({ next, ask, defaultName }: { next: string; ask: string; defaultName: string }) {
   const router = useRouter();
-  const [name, setName] = useState(defaultName || "Alex");
+  const [name, setName] = useState(defaultName || "Nadeem");
   const [error, setError] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [pending, start] = useTransition();
