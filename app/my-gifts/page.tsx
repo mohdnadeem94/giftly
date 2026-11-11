@@ -57,7 +57,7 @@ export default async function MyGiftsPage() {
           <Typography variant="h3" sx={{ fontSize: { xs: "1.9rem", md: "2.4rem" } }}>
             Thank you, {donor.displayName}! 💚
           </Typography>
-          <Typography color="text.secondary">Follow every gift from click to child.</Typography>
+          <Typography color="text.secondary">Follow every gift from click to delivery.</Typography>
         </Box>
         <ForgetDonorButton />
       </Box>

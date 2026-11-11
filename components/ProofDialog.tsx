@@ -190,7 +190,7 @@ export default function ProofDialog({ row, isAdmin, onClose, onUpdated }: Props)
                   {current.proofId ? "Upload a different receipt" : "Upload receipt"}
                 </Button>
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                  Receipts only (JPG, PNG or WebP, under 2 MB). Please don&apos;t upload photos of children or personal details.
+                  Receipts only (JPG, PNG or WebP, under 2 MB). Please don&apos;t upload photos of people or personal details.
                 </Typography>
               </>
             )}

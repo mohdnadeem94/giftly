@@ -18,7 +18,7 @@ export default function Footer() {
           <Box sx={{ maxWidth: 360 }}>
             <Logo />
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-              Santa&apos;s little agent for real giving. Follow your gift from click to child.
+              Santa&apos;s little agent for real giving. Give to anyone in need, and follow your gift all the way.
             </Typography>
           </Box>
           <Box sx={{ maxWidth: 520 }}>

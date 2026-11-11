@@ -13,7 +13,7 @@ export default async function CausesPage() {
         Explore causes
       </Typography>
       <Typography variant="h3" sx={{ fontSize: { xs: "2rem", md: "2.6rem" }, mb: 1 }}>
-        Every cause here helps children
+        Causes that need your help
       </Typography>
       <Typography color="text.secondary" sx={{ maxWidth: 620, mb: 4 }}>
         Give cash for running costs, or a real gift you can follow all the way to delivery.

@@ -258,7 +258,7 @@ export async function resetAndSeed(db: PrismaClient) {
         data: {
           orderId: order.id,
           type: MessageType.THANK_YOU,
-          text: `Your gift "${item.productTitle}" has been delivered by ${charity.name}. Thank you for making this season brighter for a child.`,
+          text: `Your gift "${item.productTitle}" has been delivered by ${charity.name}. Thank you for making this season brighter for someone in need.`,
           createdAt: new Date(createdAt.getTime() + 5 * DAY),
         },
       });

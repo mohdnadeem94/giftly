@@ -16,7 +16,7 @@ const font = Plus_Jakarta_Sans({ subsets: ["latin"], display: "swap", variable: 
 
 export const metadata: Metadata = {
   title: "Giftly: Santa's little agent for real giving",
-  description: "Follow your gift from click to child. Your money moves only when the gift arrives.",
+  description: "Give a real gift to anyone in need and follow it all the way. Your money moves only when the gift arrives.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

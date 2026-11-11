@@ -84,13 +84,14 @@ export default async function Home() {
                 variant="h1"
                 sx={{ fontSize: { xs: "2.6rem", sm: "3.4rem", md: "4rem" }, lineHeight: 1.05, mb: 2.5 }}
               >
-                Follow your gift
+                Give a real gift.
                 <br />
-                from click to child.
+                Watch it arrive.
               </Typography>
               <Typography sx={{ fontSize: { xs: "1.1rem", md: "1.25rem" }, opacity: 0.9, maxWidth: 540, mb: 4 }}>
-                Your money moves only when the gift arrives. Tell the Elf who you&apos;d like to help, and it finds a
-                real gift, or the cause where cash does the most good.
+                Help anyone in need: a child, a family, an elder or a whole community. Tell the Elf who you&apos;d like
+                to help, and it finds a real gift or the cause where cash does the most good. Your money moves only when
+                the gift arrives.
               </Typography>
               <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
                 <LinkButton

@@ -136,7 +136,7 @@ export default function GiftSearch({ charitySlug }: { charitySlug: string }) {
       {!loading && results && results.length > 0 && (
         <>
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2.5, mb: 1 }}>
-            Live prices from real stores via Channel3. Unsafe items for children are filtered out.
+            Live prices from real stores via Channel3. Unsafe items are filtered out.
           </Typography>
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)" }, gap: 1.5 }}>
             {results.map((p) => (

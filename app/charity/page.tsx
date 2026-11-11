@@ -44,7 +44,7 @@ export default async function CharityDashboardPage() {
         {charity.name}
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3, maxWidth: 720 }}>
-        Buy each gift from the store link, mark it Bought, then mark it Delivered once a child has it. Donors follow every
+        Buy each gift from the store link, mark it Bought, then mark it Delivered once it reaches the person it&apos;s for. Donors follow every
         step. {charity.role === "admin" ? "(You're viewing as Admin.)" : ""}
       </Typography>
 

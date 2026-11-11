@@ -22,7 +22,7 @@ export default function GiftTimeline({
   const steps = [
     { label: "Paid", icon: "💳", date: fmt(paidAt), note: "PayPal confirmed" },
     { label: "Bought", icon: "🛍️", date: fmt(boughtAt), note: "Charity bought it" },
-    { label: "Delivered", icon: "🎁", date: fmt(deliveredAt), note: "A child has it" },
+    { label: "Delivered", icon: "🎁", date: fmt(deliveredAt), note: "It reached them" },
   ];
 
   return (
