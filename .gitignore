@@ -26,3 +26,7 @@ Thumbs.db
 
 # vercel / render local
 .vercel
+
+# Local documentation and knowledge graph
+*.md
+graph.json

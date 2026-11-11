@@ -103,7 +103,8 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
           "& .MuiToggleButton-root": {
             border: 0,
             borderRadius: "999px !important",
-            px: 1.5,
+            px: { xs: 1, sm: 1.5 },
+            minHeight: 44,
             py: 0.4,
             color: "text.secondary",
           },
@@ -146,7 +147,7 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
         open={pending && showOverlay}
         sx={{ zIndex: (t) => t.zIndex.modal + 1, bgcolor: "rgba(250,247,242,0.72)", backdropFilter: "blur(3px)" }}
       >
-        <Paper elevation={0} sx={{ px: 5, border: "1px solid", borderColor: "divider", boxShadow: "0 24px 60px rgba(28,25,23,0.15)", minWidth: 300 }}>
+        <Paper elevation={0} sx={{ px: 5, border: "1px solid", borderColor: "divider", boxShadow: "0 24px 60px rgba(28,25,23,0.15)", width: "min(360px, calc(100vw - 32px))" }}>
           {pending && <ElfLoader compact messages={[message || "Switching…", "Getting things ready…", "The Elf is tidying up…"]} />}
         </Paper>
       </Backdrop>

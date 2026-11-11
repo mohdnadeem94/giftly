@@ -12,6 +12,7 @@ import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
+import DemoExplainer from "@/components/DemoExplainer";
 import CauseCard from "@/components/CauseCard";
 import ElfChat from "@/components/ElfChat";
 import HomeCharts from "@/components/charts/HomeCharts";
@@ -72,7 +73,7 @@ export default async function Home() {
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1.15fr 0.85fr" },
+              gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1.15fr) minmax(0, 0.85fr)" },
               gap: { xs: 5, md: 6 },
               alignItems: "center",
             }}
@@ -93,8 +94,7 @@ export default async function Home() {
               </Typography>
               <Typography sx={{ fontSize: { xs: "1.1rem", md: "1.25rem" }, opacity: 0.9, maxWidth: 540, mb: 4 }}>
                 Help anyone in need: a child, a family, an elder or a whole community. Tell the Elf who you&apos;d like
-                to help, and it finds a real gift or the cause where cash does the most good. Your money moves only when
-                the gift arrives.
+                to help, and it finds a real gift or the cause where cash does the most good. Follow your gift from payment to receipt review and delivery updates.
               </Typography>
               <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
                 <LinkButton
@@ -213,6 +213,10 @@ export default async function Home() {
         </Box>
       </Container>
 
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
+        <DemoExplainer />
+      </Container>
+
       {/* Transparency */}
       <Container maxWidth="lg" id="transparency" sx={{ mt: { xs: 8, md: 12 }, scrollMarginTop: 96 }}>
         <Typography variant="overline" color="secondary">
@@ -222,7 +226,7 @@ export default async function Home() {
           Where the money goes
         </Typography>
         <Typography color="text.secondary" sx={{ maxWidth: 640, mb: 3 }}>
-          Every chart is built live from real donations. No donor emails or payment IDs are ever shown.
+          Every chart is built live from demo records and sandbox donations. No donor emails or payment IDs are ever shown.
         </Typography>
         {charts && <HomeCharts data={charts} />}
         <Box sx={{ mt: 2.5, p: 2.5, border: "1px solid", borderColor: "divider", borderRadius: "20px", bgcolor: "background.paper" }}>

@@ -10,6 +10,7 @@ import CardGiftcardRoundedIcon from "@mui/icons-material/CardGiftcardRounded";
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
+import DemoExplainer from "@/components/DemoExplainer";
 import Checkout, { type DraftGift } from "@/components/Checkout";
 import GiftSearch from "@/components/GiftSearch";
 import LinkButton from "@/components/ui/LinkButton";
@@ -96,6 +97,8 @@ export default async function GivePage({
       >
         Back to cause
       </LinkButton>
+
+      <Box sx={{ mb: 2.5 }}><DemoExplainer compact /></Box>
 
       <Paper
         elevation={0}

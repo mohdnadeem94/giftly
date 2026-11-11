@@ -12,3 +12,25 @@ html {
     scroll-behavior: auto;
   }
 }
+
+/* Keep keyboard navigation visible without shifting the page layout. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 2000;
+  padding: 12px 20px;
+  background: #ffffff;
+  color: #14532d;
+  border-radius: 12px;
+  transform: translateY(-160%);
+}
+.skip-link:focus { transform: translateY(0); }
+:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

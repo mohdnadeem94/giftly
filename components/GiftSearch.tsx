@@ -119,7 +119,7 @@ export default function GiftSearch({ charitySlug }: { charitySlug: string }) {
       )}
 
       {loading && (
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)" }, gap: 1.5, mt: 2.5 }}>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(3, minmax(0, 1fr))" }, gap: 1.5, mt: 2.5 }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} variant="rounded" height={300} sx={{ borderRadius: "20px" }} />
           ))}
@@ -138,7 +138,7 @@ export default function GiftSearch({ charitySlug }: { charitySlug: string }) {
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2.5, mb: 1 }}>
             Live prices from real stores via Channel3. Unsafe items are filtered out.
           </Typography>
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)" }, gap: 1.5 }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(3, minmax(0, 1fr))" }, gap: 1.5 }}>
             {results.map((p) => (
               <ProductCard key={p.id} product={p} onGift={gift} busy={busyId === p.id} disabled={!!busyId} />
             ))}

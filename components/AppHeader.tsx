@@ -36,6 +36,7 @@ export default function AppHeader({ role, charitySlug, charities }: Props) {
           bgcolor: "#14532d",
           color: "rgba(255,255,255,0.9)",
           py: 0.6,
+          px: 2,
           textAlign: "center",
           fontSize: "0.78rem",
           fontWeight: 600,
@@ -60,7 +61,7 @@ export default function AppHeader({ role, charitySlug, charities }: Props) {
             <Box component={NextLink} href="/" sx={{ textDecoration: "none", display: "flex" }} aria-label="Giftly home">
               <Logo />
             </Box>
-            <Box component="nav" sx={{ display: "flex", gap: 0.5 }}>
+            <Box component="nav" aria-label="Main navigation" sx={{ display: "flex", gap: 0.5, order: { xs: 3, md: 0 }, width: { xs: "100%", md: "auto" }, overflowX: "auto", pb: { xs: 0.5, md: 0 } }}>
               {nav.map((item) => {
                 const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
                 return (
@@ -68,6 +69,7 @@ export default function AppHeader({ role, charitySlug, charities }: Props) {
                     key={item.href}
                     component={NextLink}
                     href={item.href}
+                    aria-current={active ? "page" : undefined}
                     color="inherit"
                     sx={{
                       color: active ? "primary.main" : "text.secondary",
@@ -79,8 +81,8 @@ export default function AppHeader({ role, charitySlug, charities }: Props) {
                 );
               })}
             </Box>
-            <Box sx={{ flex: 1 }} />
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box sx={{ flex: 1, display: { xs: "none", md: "block" } }} />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: "auto", maxWidth: "100%" }}>
               <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", sm: "block" }, fontWeight: 600 }}>
                 Demo role
               </Typography>

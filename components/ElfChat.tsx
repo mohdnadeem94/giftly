@@ -70,7 +70,7 @@ export default function ElfChat({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [messages, loading]);
 
   useEffect(() => {
@@ -126,6 +126,10 @@ export default function ElfChat({
         display: "flex",
         flexDirection: "column",
         height,
+        maxHeight: { xs: "min(600px, 80svh)", sm: "none" },
+        minHeight: 340,
+        minWidth: 0,
+        containerType: "inline-size",
         bgcolor: "background.paper",
         color: "text.primary",
         borderRadius: "20px",
@@ -134,7 +138,7 @@ export default function ElfChat({
     >
       {/* Header */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 2.5, py: 1.75, borderBottom: "1px solid", borderColor: "divider" }}>
-        <Box sx={{ width: 40, height: 40, borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 22, bgcolor: "#dcfce7" }} aria-hidden="true">
+        <Box sx={{ width: 40, height: 40, borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 22, flexShrink: 0, bgcolor: "#dcfce7" }} aria-hidden="true">
           🧝
         </Box>
         <Box sx={{ flex: 1 }}>
@@ -166,7 +170,7 @@ export default function ElfChat({
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.75, fontWeight: 600 }}>
                   For {m.cards.charityName} · live prices from real stores
                 </Typography>
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: `repeat(${Math.min(3, m.cards.picks.length)}, 1fr)` }, gap: 1 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", "@container (min-width: 420px)": { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }, gap: 1 }}>
                   {m.cards.picks.map((p) => (
                     <Box key={p.id} sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
                       <ProductCard
@@ -256,6 +260,7 @@ function Bubble({ role, children }: { role: "user" | "assistant"; children: Reac
         fontSize: "0.92rem",
         lineHeight: 1.5,
         whiteSpace: "pre-wrap",
+        overflowWrap: "anywhere",
         bgcolor: mine ? "primary.main" : "#f5f0e8",
         color: mine ? "#fff" : "text.primary",
         borderRadius: mine ? "18px 18px 4px 18px" : "18px 18px 18px 4px",

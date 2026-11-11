@@ -16,7 +16,7 @@ const font = Plus_Jakarta_Sans({ subsets: ["latin"], display: "swap", variable: 
 
 export const metadata: Metadata = {
   title: "Giftly: Santa's little agent for real giving",
-  description: "Give a real gift to anyone in need and follow it all the way. Your money moves only when the gift arrives.",
+  description: "Give a real gift to anyone in need and follow it all the way. Explore AI gift recommendations, sandbox payments, and receipt-backed progress in this hackathon demo.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -27,8 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ThemeProvider theme={theme}>
             <CssBaseline />
             <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+              <a href="#main-content" className="skip-link">Skip to content</a>
               <TopBar />
-              <Box component="main" sx={{ flex: 1 }}>
+              <Box component="main" id="main-content" tabIndex={-1} sx={{ flex: 1, minWidth: 0 }}>
                 {children}
               </Box>
               <Footer />
