@@ -93,10 +93,10 @@ export default async function SuccessPage({ searchParams }: { searchParams: Prom
         )}
 
         <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", flexWrap: "wrap" }}>
-          <LinkButton href={`/causes/${order.charity.slug}`} variant="outlined">
-            Back to cause
+          <LinkButton href="/my-gifts" variant="contained">
+            Track my gift
           </LinkButton>
-          <LinkButton href="/causes" variant="contained">
+          <LinkButton href="/causes" variant="outlined">
             Give again
           </LinkButton>
         </Box>

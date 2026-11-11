@@ -232,7 +232,21 @@ export async function resetAndSeed(db: PrismaClient) {
         createdAt,
         items: item
           ? {
-              create: [{ ...item, createdAt }],
+              create: [
+                {
+                  ...item,
+                  createdAt,
+                  // Realistic timeline: bought 1-3 days after payment, delivered 2-5 days after that.
+                  boughtAt:
+                    item.status === ItemStatus.BOUGHT || item.status === ItemStatus.DELIVERED
+                      ? new Date(Math.min(now, createdAt.getTime() + (1 + Math.floor(rand() * 3)) * DAY))
+                      : null,
+                  deliveredAt:
+                    item.status === ItemStatus.DELIVERED
+                      ? new Date(Math.min(now, createdAt.getTime() + (4 + Math.floor(rand() * 4)) * DAY))
+                      : null,
+                },
+              ],
             }
           : undefined,
       },

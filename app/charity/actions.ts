@@ -1,10 +1,12 @@
 "use server";
 
+import { after } from "next/server";
 import { AdminDecision, ItemStatus, OrderStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getActingCharity, giftRowSelect, toGiftRow, type CharityGiftRow } from "@/lib/charity-data";
 import { GIFT_FLOW, isAllowedTransition, type GiftFlowStatus } from "@/lib/gift-status";
 import { proofAllowsDelivery } from "@/lib/proof-check";
+import { createThankYouForItem } from "@/lib/thank-you";
 
 type Result = { ok: true; rows: CharityGiftRow[]; skipped: number } | { ok: false; error: string };
 
@@ -56,10 +58,18 @@ export async function updateGiftStatus(itemIds: string[], to: string): Promise<R
   }
 
   // Re-check the current status inside the update so two quick clicks can't skip a step.
+  const now = new Date();
   await db.orderItem.updateMany({
     where: { id: { in: allowedIds }, status: to === "BOUGHT" ? ItemStatus.PAID : ItemStatus.BOUGHT },
-    data: { status: to as ItemStatus },
+    data: to === "BOUGHT" ? { status: ItemStatus.BOUGHT, boughtAt: now } : { status: ItemStatus.DELIVERED, deliveredAt: now },
   });
+
+  // Thank-you notes are written by the Elf after the response is sent, so the dashboard stays fast.
+  if (to === "DELIVERED") {
+    after(async () => {
+      for (const id of allowedIds) await createThankYouForItem(id);
+    });
+  }
 
   const rows = await db.orderItem.findMany({ where: { id: { in: allowedIds } }, select: giftRowSelect });
   return { ok: true, rows: rows.map(toGiftRow), skipped };

@@ -24,6 +24,7 @@ export default function AppHeader({ role, charitySlug, charities }: Props) {
   const pathname = usePathname();
   const nav = [
     ...NAV,
+    ...(role === "donor" ? [{ href: "/my-gifts", label: "My gifts" }] : []),
     ...(role === "charity" || role === "admin" ? [{ href: "/charity", label: "Dashboard" }] : []),
     ...(role === "admin" ? [{ href: "/elf-test", label: "Elf tests" }] : []),
   ];

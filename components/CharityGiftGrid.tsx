@@ -178,7 +178,10 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
       }
     });
     api.setGridOption("pinnedBottomRowData", [{ id: "total", productTitle: `Total · ${n} gift${n === 1 ? "" : "s"}`, priceCents: sum, isTotal: true }]);
-    setCounts(countByStatus(all));
+    const next = countByStatus(all);
+    setCounts((prev) =>
+      prev.ALL === next.ALL && prev.PAID === next.PAID && prev.BOUGHT === next.BOUGHT && prev.DELIVERED === next.DELIVERED ? prev : next
+    );
   }, []);
 
   const applyUpdates = useCallback(
@@ -249,6 +252,25 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
   );
 
   const getRowId = useCallback((p: GetRowIdParams<GridRow>) => p.data.id, []);
+
+  // Stable callbacks: AG Grid re-runs filters when these change, so they must not be recreated each render.
+  const isExternalFilterPresent = useCallback(() => filterRef.current !== "ALL", []);
+  const doesExternalFilterPass = useCallback(
+    (node: IRowNode<GridRow>) => !!node.data && !isTotal(node.data) && node.data.status === filterRef.current,
+    []
+  );
+  const onGridReady = useCallback(
+    (e: GridReadyEvent<GridRow>) => {
+      apiRef.current = e.api;
+      refreshTotals();
+    },
+    [refreshTotals]
+  );
+  const onSelectionChanged = useCallback((e: SelectionChangedEvent<GridRow>) => setSelectedCount(e.api.getSelectedRows().length), []);
+  const getRowStyle = useCallback(
+    (p: { node: IRowNode<GridRow> }) => (p.node.rowPinned ? { background: "#faf7f2", fontWeight: 700 } : undefined),
+    []
+  );
 
   async function onCellValueChanged(e: CellValueChangedEvent<GridRow>) {
     if (e.colDef.field !== "status" || !e.data || isTotal(e.data) || e.newValue === e.oldValue) return;
@@ -383,17 +405,14 @@ export default function CharityGiftGrid({ initialRows, charityName, charitySlug,
             singleClickEdit={false}
             stopEditingWhenCellsLoseFocus
             tooltipShowDelay={300}
-            isExternalFilterPresent={() => filterRef.current !== "ALL"}
-            doesExternalFilterPass={(node) => !!node.data && !isTotal(node.data) && node.data.status === filterRef.current}
-            onGridReady={(e: GridReadyEvent<GridRow>) => {
-              apiRef.current = e.api;
-              refreshTotals();
-            }}
+            isExternalFilterPresent={isExternalFilterPresent}
+            doesExternalFilterPass={doesExternalFilterPass}
+            onGridReady={onGridReady}
             onFilterChanged={refreshTotals}
-            onSelectionChanged={(e: SelectionChangedEvent<GridRow>) => setSelectedCount(e.api.getSelectedRows().length)}
+            onSelectionChanged={onSelectionChanged}
             onCellValueChanged={onCellValueChanged}
             context={gridContext}
-            getRowStyle={(p) => (p.node.rowPinned ? { background: "#faf7f2", fontWeight: 700 } : undefined)}
+            getRowStyle={getRowStyle}
           />
         </Box>
       )}

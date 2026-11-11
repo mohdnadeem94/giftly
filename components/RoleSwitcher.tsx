@@ -1,13 +1,16 @@
 "use client";
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import Backdrop from "@mui/material/Backdrop";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import MenuItem from "@mui/material/MenuItem";
+import Paper from "@mui/material/Paper";
 import Select from "@mui/material/Select";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import ElfLoader from "@/components/ElfLoader";
 import { CHARITY_COOKIE, ROLE_COOKIE, ROLE_LABELS, ROLES, type Role } from "@/lib/roles";
 
 function setCookie(name: string, value: string) {
@@ -20,22 +23,66 @@ type Props = {
   charities: { slug: string; name: string }[];
 };
 
+const ROLE_MESSAGE: Record<Role, string> = {
+  public: "Switching to the public view…",
+  donor: "Switching to the donor view…",
+  charity: "Opening the charity view…",
+  admin: "Opening the admin view…",
+};
+
 // Demo-only role switcher. Not authentication: server routes validate every action themselves.
 export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, startTransition] = useTransition();
-  const refresh = () => startTransition(() => router.refresh());
-  const currentCharity = charities.find((c) => c.slug === charitySlug)?.slug ?? charities[0]?.slug ?? "";
+  const serverCharity = charities.find((c) => c.slug === charitySlug)?.slug ?? charities[0]?.slug ?? "";
+
+  // Show the new choice immediately while the page refreshes in the background.
+  const [shownRole, setShownRole] = useState<Role>(role);
+  const [shownCharity, setShownCharity] = useState(serverCharity);
+  const [message, setMessage] = useState("");
+  useEffect(() => setShownRole(role), [role]);
+  useEffect(() => setShownCharity(serverCharity), [serverCharity]);
+
+  // Only show the full-page overlay if the switch takes a moment (avoids a flash on fast switches).
+  const [showOverlay, setShowOverlay] = useState(false);
+  useEffect(() => {
+    if (!pending) {
+      setShowOverlay(false);
+      return;
+    }
+    const t = setTimeout(() => setShowOverlay(true), 250);
+    return () => clearTimeout(t);
+  }, [pending]);
+
+  const refresh = (msg: string, goTo?: string) => {
+    setMessage(msg);
+    startTransition(() => {
+      if (goTo) router.push(goTo);
+      else router.refresh();
+    });
+  };
+
+  /** Pages that only make sense for one role: leave them when switching to another role. */
+  function landingFor(next: Role): string | undefined {
+    if (pathname.startsWith("/charity") && next !== "charity" && next !== "admin") return next === "donor" ? "/my-gifts" : "/";
+    if (pathname.startsWith("/my-gifts") && next !== "donor") return next === "charity" || next === "admin" ? "/charity" : "/";
+    if (pathname.startsWith("/elf-test") && next !== "admin") return next === "charity" ? "/charity" : "/";
+    return undefined;
+  }
 
   function chooseRole(next: Role) {
+    setShownRole(next);
     setCookie(ROLE_COOKIE, next);
-    if ((next === "charity" || next === "admin") && currentCharity) setCookie(CHARITY_COOKIE, currentCharity);
-    refresh();
+    if ((next === "charity" || next === "admin") && shownCharity) setCookie(CHARITY_COOKIE, shownCharity);
+    refresh(ROLE_MESSAGE[next], landingFor(next));
   }
 
   function chooseCharity(slug: string) {
+    setShownCharity(slug);
     setCookie(CHARITY_COOKIE, slug);
-    refresh();
+    const name = charities.find((c) => c.slug === slug)?.name ?? "the charity";
+    refresh(`Opening ${name}…`);
   }
 
   return (
@@ -43,7 +90,7 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
       <ToggleButtonGroup
         size="small"
         exclusive
-        value={role}
+        value={shownRole}
         disabled={pending}
         onChange={(_, next: Role | null) => next && chooseRole(next)}
         aria-label="Demo role"
@@ -76,10 +123,10 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
           </ToggleButton>
         ))}
       </ToggleButtonGroup>
-      {(role === "charity" || role === "admin") && charities.length > 0 && (
+      {(shownRole === "charity" || shownRole === "admin") && charities.length > 0 && (
         <Select
           size="small"
-          value={currentCharity}
+          value={shownCharity}
           onChange={(e) => chooseCharity(String(e.target.value))}
           disabled={pending}
           aria-label="Charity you are acting as"
@@ -92,7 +139,17 @@ export default function RoleSwitcher({ role, charitySlug, charities }: Props) {
           ))}
         </Select>
       )}
-      {pending && <CircularProgress size={18} aria-label="Switching role" />}
+      {pending && <CircularProgress size={18} aria-label="Switching" />}
+
+      {/* Full-page overlay while the page reloads for the new role/charity */}
+      <Backdrop
+        open={pending && showOverlay}
+        sx={{ zIndex: (t) => t.zIndex.modal + 1, bgcolor: "rgba(250,247,242,0.72)", backdropFilter: "blur(3px)" }}
+      >
+        <Paper elevation={0} sx={{ px: 5, border: "1px solid", borderColor: "divider", boxShadow: "0 24px 60px rgba(28,25,23,0.15)", minWidth: 300 }}>
+          {pending && <ElfLoader compact messages={[message || "Switching…", "Getting things ready…", "The Elf is tidying up…"]} />}
+        </Paper>
+      </Backdrop>
     </Box>
   );
 }
