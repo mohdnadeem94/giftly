@@ -27,6 +27,6 @@ Thumbs.db
 # vercel / render local
 .vercel
 
-# Local documentation and knowledge graph
-*.md
-graph.json
+# Local-only AI knowledge files (delete these two lines to publish them)
+AGENTS.md
+docs/knowledge/
