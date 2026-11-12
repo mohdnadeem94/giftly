@@ -174,7 +174,7 @@ The human author designed the product, made the decisions, tested it and is resp
 
 ## Limits (prototype)
 
-No real authentication or charity onboarding, no real payouts or store orders, and no webhook-based settlement reconciliation. PayPal and the database can't commit atomically, so rare network failures may need manual sandbox reconciliation. Details in [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md).
+No real authentication or charity onboarding, no real payouts or store orders, and no webhook-based settlement reconciliation. PayPal and the database can't commit atomically, so rare network failures may need manual sandbox reconciliation.
 
 ## License
 
