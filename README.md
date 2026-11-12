@@ -168,8 +168,7 @@ AI output can be wrong. That's why receipts can be reviewed by an admin, and AI 
 
 | Tool | What it did |
 |---|---|
-| **Claude** (Anthropic), in the Claude app and Claude Code | Architecture, most of the code, debugging, and browser testing |
-| **OpenAI Codex** | UI polish and mobile layout (Step 11), the buy-time price re-check, and the security review (Step 12) |
+| **Claude** (Anthropic), in the Claude app and Claude Code | Architecture, most of the code, debugging, and browser testing 
 
 The human author designed the product, made the decisions, tested it and is responsible for the submission.
 
